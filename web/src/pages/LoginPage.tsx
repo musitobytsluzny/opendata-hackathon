@@ -16,7 +16,8 @@ export function LoginPage() {
     new URLSearchParams(window.location.search).get('registrace') !== null ? 'register' : 'login',
   )
   const [username, setUsername] = useState('')
-  const [email, setEmail] = useState('')
+  const [firstname, setFirstname] = useState('')
+  const [lastname, setLastname] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,8 +37,8 @@ export function LoginPage() {
       setError('Vyplňte uživatelské jméno i heslo.')
       return
     }
-    if (isRegister && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Zadejte platný e-mail, třeba jana@example.cz.')
+    if (isRegister && (!firstname.trim() || !lastname.trim())) {
+      setError('Vyplňte jméno i příjmení.')
       return
     }
     if (isRegister && password.length < 8) {
@@ -46,7 +47,13 @@ export function LoginPage() {
     }
     setLoading(true)
     try {
-      if (isRegister) await register(username.trim(), email.trim(), password)
+      if (isRegister)
+        await register({
+          username: username.trim(),
+          firstname: firstname.trim(),
+          lastname: lastname.trim(),
+          password,
+        })
       else await login(username.trim(), password)
       navigate(routes.map, true)
     } catch (err) {
@@ -129,18 +136,30 @@ export function LoginPage() {
 
           <div className={isRegister ? 'reveal reveal--open' : 'reveal'} aria-hidden={!isRegister}>
             <div className="reveal__inner">
-              <label className="field">
-                <span className="field__label">E-mail</span>
-                <input
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required={isRegister}
-                  tabIndex={isRegister ? 0 : -1}
-                />
-              </label>
+              <div className="field-row">
+                <label className="field">
+                  <span className="field__label">Jméno</span>
+                  <input
+                    name="firstname"
+                    autoComplete="given-name"
+                    value={firstname}
+                    onChange={(e) => setFirstname(e.target.value)}
+                    required={isRegister}
+                    tabIndex={isRegister ? 0 : -1}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field__label">Příjmení</span>
+                  <input
+                    name="lastname"
+                    autoComplete="family-name"
+                    value={lastname}
+                    onChange={(e) => setLastname(e.target.value)}
+                    required={isRegister}
+                    tabIndex={isRegister ? 0 : -1}
+                  />
+                </label>
+              </div>
             </div>
           </div>
 

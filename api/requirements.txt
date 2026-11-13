@@ -1,0 +1,8 @@
+fastapi>=0.110,<1
+uvicorn[standard]>=0.28,<1
+psycopg[binary]>=3.2,<4
+sqlalchemy>=2,<3
+pydantic-settings>=2,<3
+alembic>=1,<2
+pwdlib[argon2]>=0.2,<1
+PyJWT>=2,<3

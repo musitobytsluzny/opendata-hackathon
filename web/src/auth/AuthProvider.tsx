@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { UNAUTHORIZED_EVENT } from '../api/client'
 import { AuthContext } from './AuthContext'
 import { authService } from './authService'
-import type { User } from './types'
+import type { RegisterData, User } from './types'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => authService.getCurrentUser())
@@ -11,8 +11,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await authService.login(username, password))
   }, [])
 
-  const register = useCallback(async (username: string, email: string, password: string) => {
-    setUser(await authService.register(username, email, password))
+  const register = useCallback(async (data: RegisterData) => {
+    setUser(await authService.register(data))
   }, [])
 
   const logout = useCallback(() => {

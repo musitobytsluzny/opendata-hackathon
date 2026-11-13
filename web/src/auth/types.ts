@@ -3,14 +3,22 @@ export type LoginRequest = {
   password: string
 }
 
-export type RegisterRequest = {
+export type RegisterData = {
   username: string
-  email: string
+  firstname: string
+  lastname: string
   password: string
 }
 
+export type RegisterRequest = {
+  username: string
+  password: string
+  profile: { firstname: string; lastname: string }
+}
+
 export type LoginResponse = {
-  token: string
+  access_token: string
+  token_type: string
 }
 
 export type User = {

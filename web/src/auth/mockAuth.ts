@@ -1,7 +1,7 @@
 import { base64UrlEncode } from './jwt'
-import type { LoginResponse } from './types'
+import type { LoginResponse, RegisterData } from './types'
 
-const MOCK_USERS = [{ id: '1', username: 'username', email: 'username@example.com', password: 'password' }]
+const MOCK_USERS = [{ id: '1', username: 'username', password: 'password' }]
 
 const TOKEN_TTL_SECONDS = 60 * 60
 
@@ -21,19 +21,16 @@ export async function mockLogin(username: string, password: string): Promise<Log
   if (!user) {
     throw new Error('Neplatné uživatelské jméno nebo heslo')
   }
-  return { token: createMockJwt(user.id, user.username) }
+  return { access_token: createMockJwt(user.id, user.username), token_type: 'bearer' }
 }
 
-export async function mockRegister(username: string, email: string, password: string): Promise<LoginResponse> {
+export async function mockRegister({ username, password }: RegisterData): Promise<LoginResponse> {
   await new Promise((r) => setTimeout(r, 400))
 
   if (MOCK_USERS.some((u) => u.username === username)) {
     throw new Error('Toto uživatelské jméno už někdo používá')
   }
-  if (MOCK_USERS.some((u) => u.email === email)) {
-    throw new Error('Na tento e-mail už je účet založený')
-  }
-  const user = { id: String(MOCK_USERS.length + 1), username, email, password }
+  const user = { id: String(MOCK_USERS.length + 1), username, password }
   MOCK_USERS.push(user)
-  return { token: createMockJwt(user.id, user.username) }
+  return { access_token: createMockJwt(user.id, user.username), token_type: 'bearer' }
 }

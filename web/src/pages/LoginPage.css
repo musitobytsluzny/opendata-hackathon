@@ -136,6 +136,12 @@
   margin-bottom: 4px;
 }
 
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -311,6 +317,11 @@
     grid-row: 1;
     min-height: 34vh;
     padding-bottom: 0;
+  }
+
+  .field-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .auth__card {
