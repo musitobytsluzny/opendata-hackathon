@@ -26,11 +26,13 @@ assert schema["servers"][0]["url"] == "/api", schema.get("servers")
 assert json.loads(get("/mcp/health"))["status"] == "ok"
 
 
-def api(method, path, payload=None, status=200):
+def api(method, path, payload=None, status=200, token=None):
     data = None if payload is None else json.dumps(payload).encode()
     request = Request(
         base + "/api" + path, data=data, method=method, headers={"Content-Type": "application/json"}
     )
+    if token:
+        request.add_header("Authorization", "Bearer " + token)
     try:
         response = urlopen(request, timeout=10)
     except HTTPError as error:
@@ -55,6 +57,14 @@ try:
     api("POST", "/auth/login", {"username": username, "password": "wrong"}, 401)
     login = api("POST", "/auth/login", {"username": username, "password": password})
     assert login["token_type"] == "bearer"
+    token = login["access_token"]
+    assert api("GET", "/auth/me", token=token)["id"] == user["id"]
+    api("GET", "/auth/me", status=401)
+    api("GET", "/auth/me", status=401, token="invalid.jwt.signature")
+    api("POST", "/chat/ask", {"question": "Test"}, 401)
+    api("POST", "/chat/ask", {"question": "   "}, 422, token=token)
+    unavailable = api("POST", "/chat/ask", {"question": "Kolik je obyvatel?"}, 503, token=token)
+    assert "Datové zdroje" in unavailable["detail"]
     segment = login["access_token"].split(".")[1]
     claims = json.loads(base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4)))
     assert claims["sub"] == str(user["id"]) and claims["username"] == username
@@ -65,6 +75,7 @@ try:
 finally:
     api("DELETE", f"/users/{user['id']}", status=204)
 api("GET", f"/users/{user['id']}", status=404)
+api("GET", "/auth/me", status=401, token=token)
 
 # Verify the public SSE message URL and a full MCP initialize round trip.
 with urlopen(

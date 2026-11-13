@@ -16,3 +16,9 @@ npm run build --prefix web
 
 Formátování používá společnou kořenovou konfiguraci Prettieru; Python řeší Ruff.
 Kontroly celého repozitáře včetně Dockeru: `make check`.
+
+Stránky a MapLibre se načítají samostatně; mapa se aktivuje až při zobrazení.
+Obnovení přihlášení ověřuje `GET /api/auth/me`. Registrace volá `/api/users/`
+a následně `/api/auth/login`; mock je pouze explicitní volba v root `.env`.
+Chat volá autentizovaný `POST /api/chat/ask`. Datový/agentní backend zatím není
+implementovaný a vrací srozumitelnou 503; ukázky na landing page jsou označené.
