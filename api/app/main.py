@@ -1,11 +1,10 @@
-
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from app.database.connection import engine
-from app.controllers.auth_controller import router as auth_router
 
+from app.controllers.auth_controller import router as auth_router
 from app.controllers.user_controller import router as user_router
+from app.database.connection import engine
 
 app = FastAPI(
     title="OpenData Hackathon API",
@@ -15,6 +14,7 @@ app = FastAPI(
 
 app.include_router(user_router)
 app.include_router(auth_router)
+
 
 @app.get("/")
 def root():
@@ -30,10 +30,14 @@ def health_check():
 def database_health():
     try:
         with engine.connect() as connection:
-            extensions = dict(connection.execute(text(
-                "SELECT extname, extversion FROM pg_extension "
-                "WHERE extname IN ('postgis', 'vector')"
-            )).all())
+            extensions = dict(
+                connection.execute(
+                    text(
+                        "SELECT extname, extversion FROM pg_extension "
+                        "WHERE extname IN ('postgis', 'vector')"
+                    )
+                ).all()
+            )
         if set(extensions) != {"postgis", "vector"}:
             raise RuntimeError("Required database extensions are missing")
         return {"status": "ok", "extensions": extensions}

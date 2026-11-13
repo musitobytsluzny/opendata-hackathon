@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional
+
 try:
     from mcp.server.fastmcp import FastMCP
 except ModuleNotFoundError:
@@ -11,7 +12,9 @@ def register_tools(mcp: FastMCP) -> None:
     """Register all MCP tools with the FastMCP server."""
 
     @mcp.tool()
-    async def search_datasets(query: str, category: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
+    async def search_datasets(
+        query: str, category: Optional[str] = None, limit: int = 10
+    ) -> List[Dict[str, Any]]:
         """Search open datasets on the Central API.
 
         Args:
@@ -31,7 +34,9 @@ def register_tools(mcp: FastMCP) -> None:
             return [{"error": f"Failed to fetch datasets from Central API: {err}"}]
 
     @mcp.tool()
-    async def execute_central_action(action_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute_central_action(
+        action_name: str, parameters: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Trigger an action endpoint on the Central API.
 
         Args:

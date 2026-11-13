@@ -1,11 +1,6 @@
-
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.profile import (
-    ProfileCreate,
-    ProfileUpdate,
-    ProfileRead
-)
+from app.schemas.profile import ProfileCreate, ProfileRead, ProfileUpdate
 
 
 class UserCreate(BaseModel):
