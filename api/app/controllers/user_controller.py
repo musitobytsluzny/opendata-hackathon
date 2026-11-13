@@ -4,9 +4,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from app.database.connection import get_db
-from app.schemas.user import UserCreate, UserRead
-from app.services.user_service import create_user, get_users, get_user_by_id
-
+from app.schemas.user import UserCreate, UserRead, UserUpdate
+from app.services.user_service import (
+    create_user,
+    get_users,
+    get_user_by_id,
+    update_user,
+    delete_user
+)
 
 
 router = APIRouter(
@@ -50,4 +55,35 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
         )
 
     return user
+
+
+@router.patch("/{user_id}", response_model=UserRead)
+def update_user_endpoint(
+    user_id: int,
+    user_data: UserUpdate,
+    db: Session = Depends(get_db)
+):
+    user = update_user(db, user_id, user_data)
+
+    if user is None:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    return user
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user_endpoint(
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    deleted = delete_user(db, user_id)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
 

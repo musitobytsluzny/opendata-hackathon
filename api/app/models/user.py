@@ -13,6 +13,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
     profile: Mapped["Profile"] = relationship(
-        back_populates="user",
-        uselist=False
+    back_populates="user",
+    uselist=False,
+    cascade="all, delete-orphan"
     )
