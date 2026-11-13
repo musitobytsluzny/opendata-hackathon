@@ -32,7 +32,10 @@ Skript `db/init/001-extensions.sql` povoluje `postgis` a `vector` při prvním
 vytvoření databáze. Data zůstávají v pojmenovaném volume `db_data` i po `down`.
 Jednorázová služba `api-init` vytvoří tabulky uživatelů a profilů pomocí existujícího
 `api/create_tables.py` před startem API. Je idempotentní a nemaže existující data.
-Změny existujícího schématu budou vyžadovat Alembic migrace; ty zatím nejsou připravené.
+`api/create_tables.py` spouští Alembic migrace. Existující schéma z původního
+`create_all` se jednorázově převezme jako baseline a doplní role bez mazání účtů.
+Prázdná databáze dostane celé schéma. Další změny přidávej jako nové revize v
+`api/migrations/versions/`.
 
 Pořadí startu je `db → api-init → etl → api → mcp`, nginx čeká na zdravé aplikace.
 `etl/main.py` je jednorázový seed krok v transakci. Zatím ověřuje extensions a
@@ -83,8 +86,8 @@ například tělem:
 
 API vydává JWT s `sub`, `username`, `iat`, `exp`. `JWT_SECRET_KEY` v Compose má
 výchozí hodnotu pouze pro lokální vývoj. Mock lze zapnout přes
-`VITE_USE_MOCK_AUTH=true` (`username` / `password`). Uživatelský CRUD zatím nemá
-kontrolu oprávnění; ta je další práce na API. MCP už míří na interní API,
+`VITE_USE_MOCK_AUTH=true` (`username` / `password`). Uživatelský CRUD chrání RBAC
+podle pravidel v [API README](../api/README.md). MCP už míří na interní API,
 jeho ukázkové dataset tools proto do implementace endpointů vrací chyby.
 MCP prefix nginx zachovává a SSE má vypnuté bufferování. `/shared` je připojený
 read-only do Python kontejnerů.

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database.connection import get_db, settings
 from app.models.user import User
+from app.roles import Role
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -35,4 +36,16 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None:
         raise unauthorized
+    return user
+
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    if user.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Tato akce vyžaduje roli admin.")
+    return user
+
+
+def require_self_or_admin(user_id: int, user: User = Depends(get_current_user)) -> User:
+    if user.role != Role.ADMIN and user.id != user_id:
+        raise HTTPException(status_code=403, detail="K tomuto účtu nemáte oprávnění.")
     return user

@@ -69,12 +69,14 @@ try:
     claims = json.loads(base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4)))
     assert claims["sub"] == str(user["id"]) and claims["username"] == username
     assert claims["exp"] > claims["iat"]
-    assert api("GET", f"/users/{user['id']}")["username"] == username
-    updated = api("PATCH", f"/users/{user['id']}", {"profile": {"firstname": "Updated"}})
+    assert api("GET", f"/users/{user['id']}", token=token)["username"] == username
+    updated = api(
+        "PATCH", f"/users/{user['id']}", {"profile": {"firstname": "Updated"}}, token=token
+    )
     assert updated["profile"]["firstname"] == "Updated"
 finally:
-    api("DELETE", f"/users/{user['id']}", status=204)
-api("GET", f"/users/{user['id']}", status=404)
+    api("DELETE", f"/users/{user['id']}", status=204, token=token)
+api("GET", f"/users/{user['id']}", status=401, token=token)
 api("GET", "/auth/me", status=401, token=token)
 
 # Verify the public SSE message URL and a full MCP initialize round trip.

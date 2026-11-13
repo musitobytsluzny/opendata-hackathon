@@ -1,6 +1,6 @@
 COMPOSE = docker compose --env-file .env -f infra/compose.dev.yml
 
-.PHONY: setup up down logs ps build seed config lint format check smoke
+.PHONY: setup up down logs ps build seed config lint format check smoke test-api
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -40,3 +40,6 @@ check: config lint
 
 smoke: setup
 	BASE_URL="http://$$($(COMPOSE) port nginx 80)" python3 infra/smoke.py
+
+test-api: setup
+	$(COMPOSE) exec -T api python -m unittest discover -s tests -v
