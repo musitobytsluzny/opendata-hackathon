@@ -20,18 +20,29 @@ services:
       retries: 20
       start_period: 10s
 
-  api:
-    build:
+  api-init:
+    build: &api-build
       context: ..
       dockerfile: infra/docker/api.Dockerfile
-    environment:
+    environment: &api-environment
       DATABASE_URL: ${DATABASE_URL:-postgresql://opendata:opendata_dev@db:5432/opendata}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-development-secret-change-before-deployment}
+    command: ["python", "create_tables.py"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: *api-build
+    environment: *api-environment
     volumes:
       - ../api:/app
       - ../shared:/shared:ro
     depends_on:
       db:
         condition: service_healthy
+      api-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/db', timeout=5)"]
       interval: 10s
@@ -64,7 +75,7 @@ services:
       dockerfile: infra/docker/web.Dockerfile
     environment:
       VITE_API_URL: /api
-      VITE_USE_MOCK_AUTH: ${VITE_USE_MOCK_AUTH:-true}
+      VITE_USE_MOCK_AUTH: ${VITE_USE_MOCK_AUTH:-false}
     volumes:
       - ../web:/app
       - web_node_modules:/app/node_modules
