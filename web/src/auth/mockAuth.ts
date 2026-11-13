@@ -1,5 +1,5 @@
 import { base64UrlEncode } from './jwt'
-import type { LoginResponse } from './types'
+import type { LoginResponse, RegisterData } from './types'
 
 const MOCK_USERS = [{ id: '1', username: 'username', password: 'password' }]
 
@@ -21,5 +21,16 @@ export async function mockLogin(username: string, password: string): Promise<Log
   if (!user) {
     throw new Error('Neplatné uživatelské jméno nebo heslo')
   }
-  return { token: createMockJwt(user.id, user.username) }
+  return { access_token: createMockJwt(user.id, user.username), token_type: 'bearer' }
+}
+
+export async function mockRegister({ username, password }: RegisterData): Promise<LoginResponse> {
+  await new Promise((r) => setTimeout(r, 400))
+
+  if (MOCK_USERS.some((u) => u.username === username)) {
+    throw new Error('Toto uživatelské jméno už někdo používá')
+  }
+  const user = { id: String(MOCK_USERS.length + 1), username, password }
+  MOCK_USERS.push(user)
+  return { access_token: createMockJwt(user.id, user.username), token_type: 'bearer' }
 }

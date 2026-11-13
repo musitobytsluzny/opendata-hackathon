@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
-import httpx
 
+import httpx
 from config import settings
 
 
@@ -36,7 +36,9 @@ class CentralAPIClient:
     @property
     def client(self) -> httpx.AsyncClient:
         if self._client is None:
-            raise RuntimeError("CentralAPIClient is not initialized. Call 'start()' during app lifespan.")
+            raise RuntimeError(
+                "CentralAPIClient is not initialized. Call 'start()' during app lifespan."
+            )
         return self._client
 
     async def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Any:

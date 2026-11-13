@@ -1,18 +1,21 @@
 """Base utilities for downloading open datasets with local caching."""
-import os
+
+import json
 import logging
 import urllib.request
-import json
 import zipfile
 from pathlib import Path
-from typing import Optional, Dict, Any
-
-from etl.config import RAW_DATA_DIR
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 
-def download_file(url: str, output_path: Path, force_download: bool = False, headers: Optional[Dict[str, str]] = None) -> Path:
+def download_file(
+    url: str,
+    output_path: Path,
+    force_download: bool = False,
+    headers: Optional[Dict[str, str]] = None,
+) -> Path:
     """Download file from URL to local path with caching."""
     if output_path.exists() and output_path.stat().st_size > 0 and not force_download:
         logger.info(f"Using cached file: {output_path} ({output_path.stat().st_size} bytes)")
@@ -27,23 +30,27 @@ def download_file(url: str, output_path: Path, force_download: bool = False, hea
 
     req = urllib.request.Request(
         url,
-        headers=headers or {
+        headers=headers
+        or {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 OpenDataGeo/1.0"
-        }
+        },
     )
 
+    import shutil
+    import tempfile
+
+    temporary = None
     try:
         with urllib.request.urlopen(req, timeout=90) as response:
-            content = response.read()
-            if not content:
-                raise ValueError("Server returned empty content")
-            with open(output_path, "wb") as out_file:
-                out_file.write(content)
-    except Exception as e:
-        # If download failed, ensure we don't leave an empty 0-byte file
-        if output_path.exists() and output_path.stat().st_size == 0:
-            output_path.unlink()
-        raise e
+            with tempfile.NamedTemporaryFile(dir=output_path.parent, delete=False) as target:
+                temporary = Path(target.name)
+                shutil.copyfileobj(response, target)
+        if temporary.stat().st_size == 0:
+            raise ValueError("Server returned empty content")
+        temporary.replace(output_path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
     logger.info(f"Downloaded successfully: {output_path.stat().st_size} bytes")
     return output_path
@@ -53,10 +60,11 @@ def download_json(url: str, headers: Optional[Dict[str, str]] = None) -> Dict[st
     """Fetch JSON directly from an API endpoint."""
     req = urllib.request.Request(
         url,
-        headers=headers or {
+        headers=headers
+        or {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 OpenDataGeo/1.0",
-            "Accept": "application/json"
-        }
+            "Accept": "application/json",
+        },
     )
     with urllib.request.urlopen(req, timeout=90) as response:
         return json.loads(response.read().decode("utf-8"))
@@ -68,5 +76,8 @@ def unzip_file(zip_path: Path, extract_to: Optional[Path] = None) -> Path:
     target_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Extracting {zip_path} to {target_dir}...")
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        for member in zip_ref.infolist():
+            if not (target_dir / member.filename).resolve().is_relative_to(target_dir.resolve()):
+                raise ValueError("Archive contains a path outside the extraction directory")
         zip_ref.extractall(target_dir)
     return target_dir

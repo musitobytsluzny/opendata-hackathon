@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,7 +10,7 @@ class Settings(BaseSettings):
     # Server configuration
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    DEBUG: bool = True
+    DEBUG: bool = Field(default=True, validation_alias="MCP_DEBUG")
 
     # Central API configuration
     CENTRAL_API_BASE_URL: str = "https://api.example.com/v1"
@@ -15,9 +18,9 @@ class Settings(BaseSettings):
     CENTRAL_API_TIMEOUT: float = 30.0
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=Path(__file__).resolve().parents[1] / ".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
     )
 
 

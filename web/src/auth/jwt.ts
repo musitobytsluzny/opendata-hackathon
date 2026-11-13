@@ -22,7 +22,17 @@ export function decodeJwt(token: string): JwtPayload | null {
   const parts = token.split('.')
   if (parts.length !== 3) return null
   try {
-    return JSON.parse(base64UrlDecode(parts[1])) as JwtPayload
+    const payload = JSON.parse(base64UrlDecode(parts[1])) as JwtPayload
+    if (
+      typeof payload.sub !== 'string' ||
+      !payload.sub ||
+      typeof payload.username !== 'string' ||
+      !payload.username ||
+      !Number.isFinite(payload.exp) ||
+      !Number.isFinite(payload.iat)
+    )
+      return null
+    return payload
   } catch {
     return null
   }

@@ -168,3 +168,18 @@ CREATE TABLE IF NOT EXISTS chmu_stanice_voda (
     geom GEOMETRY(Point, 4326) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chmu_stanice_voda_geom ON chmu_stanice_voda USING GIST (geom);
+
+
+CREATE TABLE IF NOT EXISTS etl_dataset_status (
+    table_name TEXT PRIMARY KEY,
+    data_kind TEXT NOT NULL CHECK (data_kind IN ('reference', 'demo', 'external')),
+    row_count BIGINT NOT NULL CHECK (row_count >= 0),
+    loaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vuv_zaplavova_uzemi_etl ON vuv_zaplavova_uzemi ((COALESCE(q_stupen::text, '')), (COALESCE(aktivni_zona::text, '')), (COALESCE(tok_nazev::text, '')), (md5(ST_AsEWKB(geom)::text)));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_aopk_chranena_uzemi_etl ON aopk_chranena_uzemi ((COALESCE(kod::text, '')), (COALESCE(nazev::text, '')), (COALESCE(kategorie::text, '')), (COALESCE(ochranne_pasmo::text, '')), (md5(ST_AsEWKB(geom)::text)));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_zabaged_silnice_etl ON zabaged_silnice ((COALESCE(trida::text, '')), (COALESCE(cislo_silnice::text, '')), (COALESCE(povrch::text, '')), (md5(ST_AsEWKB(geom)::text)));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_zabaged_vodni_toky_etl ON zabaged_vodni_toky ((COALESCE(jmeno::text, '')), (COALESCE(tok_id::text, '')), (md5(ST_AsEWKB(geom)::text)));
+CREATE INDEX IF NOT EXISTS idx_zabaged_silnice_geography ON zabaged_silnice USING GIST ((geom::geography));
+CREATE INDEX IF NOT EXISTS idx_zabaged_vodni_toky_geography ON zabaged_vodni_toky USING GIST ((geom::geography));
+CREATE INDEX IF NOT EXISTS idx_osm_poi_geography ON osm_poi USING GIST ((geom::geography));

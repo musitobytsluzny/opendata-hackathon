@@ -1,13 +1,15 @@
 """Downloader and transformer for OpenStreetMap Points of Interest (Overpass API)."""
-import logging
-import json
-import urllib.parse
-from shapely.geometry import Point
-import geopandas as gpd
 
-from etl.config import RAW_DATA_DIR, TARGET_CRS, DEFAULT_BBOX
-from etl.downloaders.base import download_json
+import json
+import logging
+import urllib.parse
+
+import geopandas as gpd
+from shapely.geometry import Point
+
+from etl.config import DEFAULT_BBOX, RAW_DATA_DIR, TARGET_CRS
 from etl.db import save_geodataframe
+from etl.downloaders.base import download_json
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,7 @@ def build_overpass_query(bbox: tuple) -> str:
 def fetch_and_load_osm(bbox: tuple = DEFAULT_BBOX, force_download: bool = False) -> int:
     """Fetch POIs from OpenStreetMap via Overpass API (with local caching) and save to PostGIS."""
     logger.info(f"Processing OSM POIs for bbox {bbox}...")
+    RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
     cache_file = RAW_DATA_DIR / "osm_poi.json"
 
     data = None
@@ -60,7 +63,9 @@ def fetch_and_load_osm(bbox: tuple = DEFAULT_BBOX, force_download: bool = False)
                 json.dump(data, f, ensure_ascii=False)
             logger.info(f"Saved OSM data to cache: {cache_file}")
         except Exception as e:
-            logger.warning(f"Failed to query Overpass API: {e}. Check network connection or try again later.")
+            logger.warning(
+                f"Failed to query Overpass API: {e}. Check network connection or try again later."
+            )
             return 0
 
     elements = data.get("elements", [])
@@ -88,13 +93,15 @@ def fetch_and_load_osm(bbox: tuple = DEFAULT_BBOX, force_download: bool = False)
         else:
             category = "other"
 
-        records.append({
-            "id": f"osm-{el.get('type', 'node')}-{el.get('id')}",
-            "category": category,
-            "amenity": amenity or "other",
-            "name": name,
-            "geom": Point(el["lon"], el["lat"])
-        })
+        records.append(
+            {
+                "id": f"osm-{el.get('type', 'node')}-{el.get('id')}",
+                "category": category,
+                "amenity": amenity or "other",
+                "name": name,
+                "geom": Point(el["lon"], el["lat"]),
+            }
+        )
 
     if not records:
         logger.warning("No OSM records parsed.")

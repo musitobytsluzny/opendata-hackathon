@@ -1,14 +1,13 @@
 """Downloader and parser for RÚIAN municipality boundaries and parcels."""
-import logging
-from pathlib import Path
-import geopandas as gpd
-import pandas as pd
-from sqlalchemy import text
 
-from etl.config import RAW_DATA_DIR, TARGET_CRS, CZECH_NATIONAL_CRS
+import logging
+
+import geopandas as gpd
+
+from etl.config import CZECH_NATIONAL_CRS, RAW_DATA_DIR, TARGET_CRS
+from etl.db import save_geodataframe
 from etl.downloaders.base import download_file, unzip_file
-from etl.db import save_geodataframe, get_engine
-from etl.seed import seed_administrative_hierarchy, seed_ruian_parcely
+from etl.seed import seed_administrative_hierarchy
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,7 @@ OKRES_MAP = {
     "3404": "Plzeň-sever",
     "3405": "Plzeň-město",
     "3406": "Rokycany",
-    "3407": "Tachov"
+    "3407": "Tachov",
 }
 
 
@@ -36,11 +35,9 @@ def load_ruian_from_local_or_remote(force_download: bool = False) -> int:
     try:
         download_file(RUIAN_STAT_URL, zip_path, force_download=force_download)
         extract_dir = unzip_file(zip_path, extract_to=RAW_DATA_DIR / "ruian_stat")
-        
+
         # 2. Obce (OBCE_P.shp)
         shp_candidates = list(extract_dir.rglob("*OBCE*.shp"))
-        if not shp_candidates:
-            shp_candidates = list(extract_dir.rglob("*.shp"))
 
         if not shp_candidates:
             logger.warning("No SHP files found in RÚIAN archive.")
@@ -56,8 +53,11 @@ def load_ruian_from_local_or_remote(force_download: bool = False) -> int:
             gdf = gdf[gdf["VUSC_KOD"].astype(str) == "43"].copy()
             logger.info(f"Filtered {len(gdf)} municipalities in Plzeň Region (VÚSC 43).")
 
+        if "VUSC_KOD" not in gdf.columns:
+            raise ValueError("RÚIAN response needs a region identifier before importing")
+
         gdf["kod_obce"] = gdf["KOD"].astype(int)
-        gdf["kod_okresu"] = gdf["OKRES_KOD"].astype(str)
+        gdf["kod_okresu"] = gdf["OKRES_KOD"].astype("Int64").astype(str)
         gdf["nazev"] = gdf["NAZEV"].astype(str)
         gdf["okres"] = gdf["kod_okresu"].map(OKRES_MAP).fillna("Plzeňský kraj")
 
@@ -76,7 +76,7 @@ def load_ruian_from_local_or_remote(force_download: bool = False) -> int:
             ku_gdf = gpd.read_file(ku_candidates[0], encoding="cp1250")
             if "VUSC_KOD" in ku_gdf.columns:
                 ku_gdf = ku_gdf[ku_gdf["VUSC_KOD"].astype(str) == "43"].copy()
-            
+
             ku_gdf["kod_ku"] = ku_gdf["KOD"].astype(int)
             ku_gdf["kod_obce"] = ku_gdf["OBEC_KOD"].astype(int)
             ku_gdf["nazev"] = ku_gdf["NAZEV"].astype(str)
@@ -90,7 +90,7 @@ def load_ruian_from_local_or_remote(force_download: bool = False) -> int:
             save_geodataframe(ku_gdf, "ruian_ku", if_exists="append", geom_col="geom")
 
         # 4. Parcely (linked with lookups and KÚ)
-        seed_ruian_parcely()
+        # Parcels require an actual source; never synthesize parcel records here.
 
         return total_saved
     except Exception as e:

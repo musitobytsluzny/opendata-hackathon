@@ -42,7 +42,7 @@ BEGIN
         COALESCE(bool_or(z.aktivni_zona = TRUE), FALSE) AS in_active_zone,
         string_agg(DISTINCT z.tok_nazev, ', ') AS flood_rivers,
         string_agg(DISTINCT c.stavebni_omezeni, ' | ') AS flood_restrictions,
-        MAX(c.zavaznost) AS max_severity
+        (ARRAY_AGG(c.zavaznost ORDER BY c.navratnost_let))[1] AS max_severity
     INTO v_flood
     FROM vuv_zaplavova_uzemi z
     LEFT JOIN ciselnik_povodnove_riziko c ON z.q_stupen = c.kod
@@ -92,24 +92,23 @@ BEGIN
     WHERE ST_DWithin(v_centroid::geography, geom::geography, 10000);
 
     -- 7. Demografie obce (ČSÚ) - získáno relačně podle obce
-    IF v_municipality.kod_obce IS NOT NULL THEN
         SELECT pocet_obyvatel, seniori_65_plus, prirustek_5y_pct,
                ROUND((seniori_65_plus::numeric / NULLIF(pocet_obyvatel, 0) * 100), 1) AS seniori_pct
         INTO v_demography
         FROM csu_demografie_obce
         WHERE kod_obce = v_municipality.kod_obce;
-    END IF;
 
     -- 8. Environmentální zeleň (Sentinel-2 NDVI)
-    IF v_municipality.kod_obce IS NOT NULL THEN
         SELECT avg_ndvi, podil_zelene_pct, zastavena_plocha_pct
         INTO v_environment
         FROM sentinel_ndvi_obce
         WHERE kod_obce = v_municipality.kod_obce;
-    END IF;
 
     -- Sestavení výsledného JSON objektu obohaceného o relační pravidla
     v_result := jsonb_build_object(
+        'assessment_kind', 'indicative',
+        'data_sources', COALESCE((SELECT jsonb_object_agg(table_name, jsonb_build_object(
+            'kind', data_kind, 'rows', row_count, 'loaded_at', loaded_at)) FROM etl_dataset_status), '{}'::jsonb),
         'location_hierarchy', jsonb_build_object(
             'municipality_code', v_municipality.kod_obce,
             'municipality_name', v_municipality.obec_nazev,

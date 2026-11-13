@@ -1,0 +1,18 @@
+.mini-kraj {
+  display: block;
+  overflow: visible;
+}
+
+.mini-kraj path {
+  stroke-width: 9;
+  stroke-linejoin: round;
+  transition: fill 0.5s var(--ease-out);
+}
+
+.mini-kraj--light path {
+  stroke: #ffffff;
+}
+
+.mini-kraj--dark path {
+  stroke: rgba(0, 0, 0, 0.55);
+}

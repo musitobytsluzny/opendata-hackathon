@@ -1,4 +1,3 @@
-from typing import Any, Dict
 try:
     from mcp.server.fastmcp import FastMCP
 except ModuleNotFoundError:

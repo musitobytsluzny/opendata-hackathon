@@ -1,0 +1,16 @@
+.git/
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/build/
+**/coverage/
+**/.venv/
+**/__pycache__/
+**/.ruff_cache/
+**/.pytest_cache/
+**/.mypy_cache/
+**/package-lock.json
+**/.env*
+backups/
+etl/data/
+etl/output/

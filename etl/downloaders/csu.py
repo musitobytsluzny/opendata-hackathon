@@ -1,11 +1,12 @@
 """Downloader and transformer for ČSÚ demographic indicators by municipality."""
+
 import logging
-from pathlib import Path
+
 import pandas as pd
 
 from etl.config import RAW_DATA_DIR
+from etl.db import save_dataframe
 from etl.downloaders.base import download_file
-from etl.db import get_engine
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,11 @@ def fetch_and_load_csu(force_download: bool = False) -> int:
 
     # Ensure required columns
     # Save to PostGIS / PostgreSQL
-    engine = get_engine()
-    df.to_sql("csu_demografie_obce", con=engine, if_exists="append", index=False)
+    required = {"kod_obce", "rok", "pocet_obyvatel"}
+    if not required <= set(df.columns):
+        raise ValueError("ČSÚ input needs an explicit source-to-schema mapping before import")
+    df = df.sort_values("rok").drop_duplicates("kod_obce", keep="last")
+    save_dataframe(df, "csu_demografie_obce")
     return len(df)
 
 

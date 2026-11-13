@@ -10,30 +10,55 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-opendata}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-opendata_dev}
     ports:
-      - "127.0.0.1:${DB_PORT:-5432}:5432"
+      - '127.0.0.1:${DB_PORT:-5432}:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" && psql -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" -tAc \"SELECT count(*) = 2 FROM pg_extension WHERE extname IN ('postgis', 'vector')\" | grep -qx t"]
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" && psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "SELECT count(*) = 2 FROM pg_extension WHERE extname IN (''postgis'', ''vector'')" | grep -qx t',
+        ]
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 10s
 
-  api:
-    build:
+  api-init:
+    build: &api-build
       context: ..
       dockerfile: infra/docker/api.Dockerfile
-    environment:
+    environment: &api-environment
       DATABASE_URL: ${DATABASE_URL:-postgresql://opendata:opendata_dev@db:5432/opendata}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-development-secret-change-before-deployment}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+    command: ['python', 'create_tables.py']
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: *api-build
+    environment: *api-environment
     volumes:
       - ../api:/app
       - ../shared:/shared:ro
     depends_on:
       db:
         condition: service_healthy
+      api-init:
+        condition: service_completed_successfully
+      etl:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/db', timeout=5)"]
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/db', timeout=5)",
+        ]
       interval: 10s
       timeout: 6s
       retries: 10
@@ -43,9 +68,10 @@ services:
       context: ..
       dockerfile: infra/docker/mcp.Dockerfile
     environment:
-      DEBUG: "true"
-      CENTRAL_API_BASE_URL: http://api:8000
+      MCP_DEBUG: ${MCP_DEBUG:-true}
+      CENTRAL_API_BASE_URL: ${CENTRAL_API_BASE_URL:-http://api:8000}
       CENTRAL_API_KEY: ${CENTRAL_API_KEY:-}
+      CENTRAL_API_TIMEOUT: ${CENTRAL_API_TIMEOUT:-30}
     volumes:
       - ../mcp:/app
       - ../shared:/shared:ro
@@ -53,7 +79,13 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)",
+        ]
       interval: 10s
       timeout: 6s
       retries: 10
@@ -63,13 +95,19 @@ services:
       context: ..
       dockerfile: infra/docker/web.Dockerfile
     environment:
-      VITE_API_URL: /api
-      VITE_USE_MOCK_AUTH: ${VITE_USE_MOCK_AUTH:-true}
+      VITE_API_URL: ${VITE_API_URL:-/api}
+      VITE_USE_MOCK_AUTH: ${VITE_USE_MOCK_AUTH:-false}
     volumes:
       - ../web:/app
       - web_node_modules:/app/node_modules
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:5173').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:5173').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -77,7 +115,7 @@ services:
   nginx:
     image: nginx:1.28-alpine
     ports:
-      - "127.0.0.1:${HTTP_PORT:-8080}:80"
+      - '127.0.0.1:${HTTP_PORT:-8080}:80'
     volumes:
       - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
@@ -88,10 +126,47 @@ services:
       web:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/nginx-health"]
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1/nginx-health']
       interval: 10s
       timeout: 5s
       retries: 5
+
+  etl:
+    build:
+      context: ..
+      dockerfile: infra/docker/etl.Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://opendata:opendata_dev@db:5432/opendata}
+    volumes:
+      - ../etl:/app/etl
+      - ../shared:/shared:ro
+    depends_on:
+      api-init:
+        condition: service_completed_successfully
+    restart: 'no'
+
+  quality-python:
+    profiles: ['tools']
+    build:
+      context: ..
+      dockerfile: infra/docker/quality.Dockerfile
+    volumes:
+      - ..:/workspace
+
+  quality-web:
+    profiles: ['tools']
+    build:
+      context: ..
+      dockerfile: infra/docker/web.Dockerfile
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    command:
+      [
+        'sh',
+        '-c',
+        '/app/node_modules/.bin/oxlint -c web/.oxlintrc.json web && /app/node_modules/.bin/prettier --check .',
+      ]
 
 volumes:
   db_data:

@@ -1,0 +1,10 @@
+{
+  "python.analysis.extraPaths": ["./api"],
+  "editor.formatOnSave": true,
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "[typescript][typescriptreact][javascript][json][jsonc][yaml][markdown][html][css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
+}
