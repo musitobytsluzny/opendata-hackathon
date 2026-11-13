@@ -11,8 +11,12 @@ import {
   Marker,
   type LngLatLike,
   type MapLayerMouseEvent,
+  type ExpressionSpecification,
   type StyleSpecification,
+  prewarm,
+  setWorkerUrl,
 } from 'maplibre-gl'
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
   KRAJ_BOUNDS,
@@ -24,6 +28,8 @@ import {
   okresy,
   type OkresId,
 } from './geo'
+import { PALETTES, type PaletteId } from './palette'
+import { reducedMotion } from '../settings/settings'
 import './RegionMap.css'
 
 export type RegionMapHandle = {
@@ -42,18 +48,56 @@ type Padding = { top: number; right: number; bottom: number; left: number }
 
 export type RegionMapProps = {
   interactive?: boolean
+  hoverable?: boolean
+  basemap?: 'orto' | 'dark'
+  palette?: PaletteId
   maskOpacity?: number
   padding?: Padding
   values?: Partial<Record<OkresId, number>> | null
   labels?: Partial<Record<OkresId, string>> | null
   hovered?: OkresId | null
   onHover?: (id: OkresId | null) => void
-  drift?: boolean
   showTowns?: boolean
   focused?: OkresId | null
   viewKey?: string
   label?: string
   className?: string
+}
+
+setWorkerUrl(workerUrl)
+prewarm()
+
+const H: ExpressionSpecification = ['coalesce', ['feature-state', 'h'], 0]
+const D: ExpressionSpecification = ['coalesce', ['feature-state', 'd'], 0]
+const OKRES_IDS = Object.keys(OKRESY) as OkresId[]
+
+function fillColor(palette: PaletteId): ExpressionSpecification {
+  const [low, mid, high] = PALETTES[palette]
+  return [
+    'interpolate',
+    ['linear'],
+    ['coalesce', ['feature-state', 'v'], 0],
+    0,
+    low,
+    0.5,
+    mid,
+    1,
+    high,
+  ]
+}
+
+function fillOpacity(flat: boolean): ExpressionSpecification {
+  const [base, lift, dim] = flat ? [0.9, 0.1, -0.3] : [0.44, 0.26, -0.14]
+  return [
+    'case',
+    ['==', ['feature-state', 'v'], null],
+    ['*', 0.16, H],
+    ['+', base, ['*', lift, H], ['*', dim, D]],
+  ]
+}
+
+function visibility(on: boolean) {
+  return on ? 'visible' : 'none'
 }
 
 const ORTOFOTO = 'https://ags.cuzk.cz/arcgis1/rest/services/ORTOFOTO_WM/MapServer/tile/{z}/{y}/{x}'
@@ -91,13 +135,15 @@ const DEFAULT_PADDING: Padding = { top: 24, right: 24, bottom: 24, left: 24 }
 export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function RegionMap(
   {
     interactive = true,
+    hoverable = false,
+    basemap = 'orto',
+    palette = 'blue',
     maskOpacity = 0.68,
     padding = DEFAULT_PADDING,
     values = null,
     labels = null,
     hovered = null,
     onHover,
-    drift = false,
     showTowns = true,
     focused = null,
     viewKey = 'default',
@@ -113,15 +159,20 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
   const onHoverRef = useRef(onHover)
   const valueMarkers = useRef<Marker[]>([])
   const pending = useRef<() => void>(() => {})
+  const glowRef = useRef<{ d: number; h: Partial<Record<OkresId, number>> }>({ d: 0, h: {} })
 
   const maskRef = useRef(maskOpacity)
+  const basemapRef = useRef(basemap)
+  const paletteRef = useRef(palette)
   const labelRef = useRef(label)
   useLayoutEffect(() => {
     paddingRef.current = padding
     maskRef.current = maskOpacity
     onHoverRef.current = onHover
     labelRef.current = label
-  }, [padding, maskOpacity, onHover, label])
+    basemapRef.current = basemap
+    paletteRef.current = palette
+  }, [padding, maskOpacity, onHover, label, basemap, palette])
 
   const target = useRef<Target>({ kind: 'kraj' })
   const targetVersion = useRef(0)
@@ -136,7 +187,7 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     m.fitBounds(bounds, {
       padding: paddingRef.current,
       ...(t.kind === 'okres' ? { maxZoom: 11.5 } : {}),
-      duration,
+      duration: reducedMotion() ? 0 : duration,
       easing: EASE,
     })
   }, [])
@@ -161,7 +212,18 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
       style,
       bounds: KRAJ_BOUNDS,
       fitBoundsOptions: { padding: paddingRef.current },
-      interactive,
+      interactive: interactive || hoverable,
+      ...(interactive
+        ? {}
+        : {
+            dragPan: false,
+            scrollZoom: false,
+            boxZoom: false,
+            doubleClickZoom: false,
+            keyboard: false,
+            touchZoomRotate: false,
+            touchPitch: false,
+          }),
       attributionControl: { compact: false },
       maxBounds: [
         [-2, 42],
@@ -174,7 +236,10 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
       fadeDuration: 0,
     })
     map.current = m
-    m.touchZoomRotate?.disableRotation()
+    const reveal = () => m.getCanvasContainer().classList.add('is-ready')
+    const revealTimer = window.setTimeout(reveal, 3000)
+    m.once('idle', reveal)
+    if (interactive) m.touchZoomRotate?.disableRotation()
     m.getCanvas().setAttribute('aria-label', labelRef.current)
     m.getCanvas().setAttribute('role', 'img')
     if (!interactive) m.getCanvas().setAttribute('tabindex', '-1')
@@ -188,27 +253,21 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
       m.addSource('kraj', { type: 'geojson', data: kraj })
 
       m.addLayer({
+        id: 'flat',
+        type: 'fill',
+        source: 'kraj',
+        paint: { 'fill-color': '#242c26' },
+        layout: { visibility: visibility(basemapRef.current === 'dark') },
+      })
+      for (const id of ['s2', 'orto'])
+        m.setLayoutProperty(id, 'visibility', visibility(basemapRef.current === 'orto'))
+      m.addLayer({
         id: 'okresy-fill',
         type: 'fill',
         source: 'okresy',
         paint: {
-          'fill-color': [
-            'interpolate',
-            ['linear'],
-            ['coalesce', ['feature-state', 'v'], 0],
-            0,
-            '#dce8f6',
-            0.5,
-            '#5b93d3',
-            1,
-            '#1b4c85',
-          ],
-          'fill-opacity': [
-            'case',
-            ['==', ['feature-state', 'v'], null],
-            ['case', ['boolean', ['feature-state', 'hover'], false], 0.14, 0],
-            ['case', ['boolean', ['feature-state', 'hover'], false], 0.68, 0.44],
-          ],
+          'fill-color': fillColor(paletteRef.current),
+          'fill-opacity': fillOpacity(basemapRef.current === 'dark'),
           'fill-opacity-transition': { duration: 500 },
         },
       })
@@ -220,21 +279,15 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
           'line-color': '#ffffff',
           'line-opacity': [
             'case',
-            [
-              'any',
-              ['boolean', ['feature-state', 'hover'], false],
-              ['boolean', ['feature-state', 'focused'], false],
-            ],
+            ['boolean', ['feature-state', 'focused'], false],
             1,
-            0.5,
+            ['+', 0.5, ['*', 0.5, H]],
           ],
           'line-width': [
             'case',
             ['boolean', ['feature-state', 'focused'], false],
             3.5,
-            ['boolean', ['feature-state', 'hover'], false],
-            2.5,
-            1,
+            ['+', 1, ['*', 1.5, H]],
           ],
         },
       })
@@ -262,10 +315,10 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
         layout: { 'line-join': 'round' },
       })
 
-      if (interactive) {
+      if (interactive || hoverable) {
         m.on('mousemove', 'okresy-fill', (e: MapLayerMouseEvent) => {
           const id = e.features?.[0]?.properties?.id as OkresId | undefined
-          m.getCanvas().style.cursor = id ? 'pointer' : ''
+          if (interactive) m.getCanvas().style.cursor = id ? 'pointer' : ''
           onHoverRef.current?.(id ?? null)
         })
         m.on('mouseleave', 'okresy-fill', () => {
@@ -279,11 +332,12 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     })
 
     return () => {
+      window.clearTimeout(revealTimer)
       ready.current = false
       m.remove()
       map.current = null
     }
-  }, [interactive])
+  }, [interactive, hoverable])
 
   useEffect(() => {
     const m = map.current
@@ -296,19 +350,32 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
   }, [label])
 
   useEffect(() => {
+    const m = map.current
+    if (!m || !ready.current) return
+    const flat = basemap === 'dark'
+    m.setLayoutProperty('flat', 'visibility', visibility(flat))
+    m.setLayoutProperty('s2', 'visibility', visibility(!flat))
+    m.setLayoutProperty('orto', 'visibility', visibility(!flat))
+    m.setPaintProperty('okresy-fill', 'fill-opacity', fillOpacity(flat))
+    m.setPaintProperty('okresy-fill', 'fill-color', fillColor(palette))
+  }, [basemap, palette])
+
+  useEffect(() => {
     if (!showTowns) return
     const m = map.current
     if (!m) return
     const markers = TOWNS.map((t) => {
       const el = document.createElement('div')
-      el.className = t.major ? 'town town--major' : 'town'
+      el.className = ['town', t.major ? 'town--major' : '', t.left ? 'town--left' : '']
+        .filter(Boolean)
+        .join(' ')
       el.setAttribute('aria-hidden', 'true')
       el.innerHTML = '<span class="town__dot"></span><span class="town__name"></span>'
       el.querySelector('.town__name')!.textContent = t.name
-      return new Marker({ element: el, anchor: 'left' }).setLngLat(t.at).addTo(m)
+      return new Marker({ element: el, anchor: t.left ? 'right' : 'left' }).setLngLat(t.at).addTo(m)
     })
     return () => markers.forEach((mk) => mk.remove())
-  }, [showTowns, interactive])
+  }, [showTowns, interactive, hoverable])
 
   useEffect(() => {
     const apply = () => {
@@ -328,7 +395,12 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
           el.setAttribute('aria-hidden', 'true')
           const pill = document.createElement('span')
           pill.className = 'value-pill tabular'
-          pill.textContent = text
+          const name = document.createElement('span')
+          name.className = 'value-pill__name'
+          const nameText = document.createElement('span')
+          nameText.textContent = OKRESY[id].name
+          name.appendChild(nameText)
+          pill.append(name, text)
           el.appendChild(pill)
           valueMarkers.current.push(
             new Marker({ element: el }).setLngLat(OKRESY[id].center).addTo(m),
@@ -341,17 +413,42 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
   }, [values, labels])
 
   useEffect(() => {
-    const m = map.current
-    if (!m || !ready.current) return
-    for (const id of Object.keys(OKRESY) as OkresId[]) {
-      m.setFeatureState({ source: 'okresy', id }, { hover: id === hovered })
-    }
     valueMarkers.current.forEach((mk) => {
       const el = mk.getElement()
       el.classList.toggle('is-hovered', el.dataset.okres === hovered)
       el.classList.toggle('is-focused', el.dataset.okres === focused)
     })
   }, [hovered, focused, values])
+
+  useEffect(() => {
+    const m = map.current
+    if (!m || !ready.current) return
+    const instant = reducedMotion()
+    const glow = glowRef.current
+    let raf = 0
+    let last = 0
+    const tick = (t: number) => {
+      const dt = last ? Math.min(t - last, 64) : 16
+      last = t
+      let moving = false
+      const step = (from: number, to: number) => {
+        if (instant) return to
+        const next = from + (to - from) * (1 - Math.exp(-dt / (to > from ? 80 : 150)))
+        if (Math.abs(to - next) < 0.004) return to
+        moving = true
+        return next
+      }
+      glow.d = step(glow.d, hovered ? 1 : 0)
+      for (const id of OKRES_IDS) {
+        const h = step(glow.h[id] ?? 0, id === hovered ? 1 : 0)
+        glow.h[id] = h
+        m.setFeatureState({ source: 'okresy', id }, { h, d: glow.d * (1 - h) })
+      }
+      if (moving) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [hovered])
 
   useEffect(() => {
     const apply = () => {
@@ -363,26 +460,6 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     }
     if (ready.current) apply()
   }, [focused, values])
-
-  useEffect(() => {
-    const m = map.current
-    if (!m || !drift) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    let raf = 0
-    let last = performance.now()
-    const tick = (t: number) => {
-      const dt = t - last
-      if (document.hidden) {
-        last = t
-      } else if (dt >= 1000 / 30) {
-        last = t
-        m.setBearing(m.getBearing() + Math.min(dt, 100) * 0.0016)
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [drift, interactive])
 
   useEffect(() => {
     const m = map.current
@@ -406,7 +483,7 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
           center: saved.center,
           zoom: saved.zoom,
           bearing: saved.bearing,
-          duration: 640,
+          duration: reducedMotion() ? 0 : 640,
           easing: EASE,
         })
         return
@@ -415,7 +492,12 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     frame(640)
   }, [viewKey, padding.top, padding.right, padding.bottom, padding.left, frame])
 
-  const classes = ['region-map', labels ? 'region-map--values' : '', className ?? '']
+  const classes = [
+    'region-map',
+    labels ? 'region-map--values' : '',
+    hoverable && !interactive ? 'region-map--hover' : '',
+    className ?? '',
+  ]
     .filter(Boolean)
     .join(' ')
   return <div ref={container} className={classes} role="region" aria-label={label} />

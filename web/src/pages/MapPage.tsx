@@ -8,6 +8,7 @@ import {
   type FormEvent,
 } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import { Choice, Toggle } from '../components/Choice'
 import { Icon } from '../components/Icon'
 import {
   PENDING_QUESTION_KEY,
@@ -21,11 +22,42 @@ import {
 } from '../chat/assistant'
 import { RegionMap, type RegionMapHandle } from '../map/LazyRegionMap'
 import type { OkresId } from '../map/geo'
+import { PALETTES, type PaletteId } from '../map/palette'
+import { reducedMotion, setSetting, useSettings } from '../settings/settings'
 import './MapPage.css'
 
 const EMPTY_MESSAGES: Message[] = []
 
 type Popover = 'settings' | 'history' | null
+
+const BASEMAPS = [
+  { value: 'orto', label: 'Ortofoto' },
+  { value: 'dark', label: 'Tmavý' },
+] as const
+
+const scale = (id: PaletteId) => (
+  <i
+    className="choice__scale"
+    style={{ background: `linear-gradient(90deg, ${PALETTES[id].join(', ')})` }}
+    aria-hidden="true"
+  />
+)
+
+const SCALES = [
+  { value: 'blue', label: 'Modrá', swatch: scale('blue') },
+  { value: 'cividis', label: 'Kontrastní', swatch: scale('cividis') },
+] as const
+
+const THEMES = [
+  { value: 'system', label: 'Systém' },
+  { value: 'light', label: 'Světlý' },
+  { value: 'dark', label: 'Tmavý' },
+] as const
+
+const TEXT_SIZES = [
+  { value: 'normal', label: 'Běžná' },
+  { value: 'large', label: 'Větší' },
+] as const
 
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
 
@@ -145,7 +177,7 @@ export function MapPage() {
 
   function toggleWide() {
     fadeTimers.current.forEach((t) => window.clearTimeout(t))
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (reducedMotion()) {
       setWide((w) => !w)
       return
     }
@@ -158,7 +190,8 @@ export function MapPage() {
 
   useEffect(() => () => fadeTimers.current.forEach((t) => window.clearTimeout(t)), [])
   const [popover, setPopover] = useState<Popover>(null)
-  const [dimOutside, setDimOutside] = useState(true)
+  const settings = useSettings()
+  const [confirmClear, setConfirmClear] = useState(false)
   const [isNarrow, setIsNarrow] = useState(() => window.matchMedia('(max-width: 720px)').matches)
   const [viewport, setViewport] = useState(() => ({
     width: window.innerWidth,
@@ -356,6 +389,16 @@ export function MapPage() {
     }
   }
 
+  function clearHistory() {
+    requestRef.current?.abort()
+    requestRef.current = null
+    setLoadingIn(null)
+    const fresh = newSession()
+    setSessions([fresh])
+    setCurrentId(fresh.id)
+    resetView()
+  }
+
   return (
     <div className={expanded ? 'app app--expanded' : 'app'}>
       <RegionMap
@@ -372,7 +415,10 @@ export function MapPage() {
             ? `Mapa Plzeňského kraje, okresy obarvené podle: ${latest.metric}`
             : 'Mapa Plzeňského kraje'
         }
-        maskOpacity={dimOutside ? 0.68 : 0}
+        maskOpacity={settings.dim ? 0.68 : 0}
+        basemap={settings.basemap}
+        palette={settings.palette}
+        showTowns={settings.towns}
         className={expanded ? 'region-map--compact' : undefined}
       />
       <div className="app__vignette" aria-hidden="true" />
@@ -391,7 +437,10 @@ export function MapPage() {
             aria-expanded={popover === 'settings'}
             aria-haspopup="dialog"
             aria-controls={popover === 'settings' ? 'popover-settings' : undefined}
-            onClick={() => setPopover(popover === 'settings' ? null : 'settings')}
+            onClick={() => {
+              setConfirmClear(false)
+              setPopover(popover === 'settings' ? null : 'settings')
+            }}
           >
             <Icon name="settings" />
           </button>
@@ -436,22 +485,97 @@ export function MapPage() {
           {popover === 'settings' && (
             <div
               id="popover-settings"
-              className="popover popover--left"
+              className="popover popover--left popover--settings"
               role="dialog"
               aria-label="Nastavení"
             >
               <p className="popover__who">
                 Přihlášen jako <strong>{user?.username}</strong>
               </p>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={dimOutside}
-                  onChange={(e) => setDimOutside(e.target.checked)}
+
+              <p className="popover__heading">Mapa</p>
+              <Choice
+                label="Podklad"
+                value={settings.basemap}
+                options={BASEMAPS}
+                onChange={(v) => setSetting('basemap', v)}
+              />
+              <Choice
+                label="Barevná škála"
+                value={settings.palette}
+                options={SCALES}
+                onChange={(v) => setSetting('palette', v)}
+              />
+              <Toggle
+                label="Názvy měst a obcí"
+                checked={settings.towns}
+                onChange={(v) => setSetting('towns', v)}
+              />
+              {settings.basemap === 'orto' && (
+                <Toggle
+                  label="Ztmavit okolí kraje"
+                  checked={settings.dim}
+                  onChange={(v) => setSetting('dim', v)}
                 />
-                <span className="switch__track" aria-hidden="true" />
-                Ztmavit okolí kraje
-              </label>
+              )}
+
+              <div className="popover__rule" />
+              <p className="popover__heading">Zobrazení</p>
+              <Choice
+                label="Vzhled"
+                value={settings.theme}
+                options={THEMES}
+                onChange={(v) => setSetting('theme', v)}
+              />
+              <Choice
+                label="Velikost textu"
+                value={settings.text}
+                options={TEXT_SIZES}
+                onChange={(v) => setSetting('text', v)}
+              />
+              <Toggle
+                label="Omezit animace"
+                checked={settings.reduceMotion}
+                onChange={(v) => setSetting('reduceMotion', v)}
+              />
+
+              <div className="popover__rule" />
+              {confirmClear ? (
+                <div className="confirm" role="alertdialog" aria-label="Smazat historii konverzací">
+                  <p className="confirm__text">
+                    Smazat{' '}
+                    {history.length === 1 ? 'konverzaci' : `všech ${history.length} konverzací`}?
+                    Nejde to vrátit.
+                  </p>
+                  <div className="confirm__actions">
+                    <button
+                      type="button"
+                      className="confirm__btn"
+                      autoFocus
+                      onClick={() => setConfirmClear(false)}
+                    >
+                      Zrušit
+                    </button>
+                    <button
+                      type="button"
+                      className="confirm__btn confirm__btn--danger"
+                      onClick={clearHistory}
+                    >
+                      Smazat
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="popover__item"
+                  disabled={history.length === 0}
+                  onClick={() => setConfirmClear(true)}
+                >
+                  <Icon name="trash" size={18} />
+                  Smazat historii konverzací
+                </button>
+              )}
               <button type="button" className="popover__item" onClick={logout}>
                 <Icon name="logout" size={18} />
                 Odhlásit se

@@ -1,15 +1,16 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { Icon } from '../components/Icon'
 import { RegionMap } from '../map/LazyRegionMap'
+import type { OkresId } from '../map/geo'
 import { navigate, routes } from '../router/router'
 import { Link } from '../router/Link'
 import './LoginPage.css'
 
 type Mode = 'login' | 'register'
 
-const PADDING = { top: 64, right: 64, bottom: 64, left: 64 }
+const NARROW = '(max-width: 900px)'
 
 export function LoginPage() {
   const { login, register } = useAuth()
@@ -24,7 +25,28 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const [hovered, setHovered] = useState<OkresId | null>(null)
+  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW)
+    const on = () => setNarrow(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+
   const isRegister = mode === 'register'
+  const padding = useMemo(() => {
+    const edge = isRegister ? 112 : 56
+    if (narrow)
+      return {
+        top: 72 + edge / 4,
+        right: edge / 4,
+        bottom: Math.round(window.innerHeight * 0.48),
+        left: edge / 4,
+      }
+    const card = Math.min(Math.max(window.innerWidth * 0.36, 440), 620)
+    return { top: edge, right: card + edge / 2, bottom: edge, left: edge }
+  }, [isRegister, narrow])
 
   function switchMode(next: Mode) {
     setMode(next)
@@ -73,9 +95,11 @@ export function LoginPage() {
       <div className="auth__stage" aria-hidden="true">
         <RegionMap
           interactive={false}
-          maskOpacity={0.72}
-          padding={PADDING}
-          drift
+          hoverable
+          hovered={hovered}
+          onHover={setHovered}
+          maskOpacity={0.5}
+          padding={padding}
           showTowns={false}
         />
       </div>
@@ -86,7 +110,7 @@ export function LoginPage() {
       </Link>
 
       <div className="auth__statement">
-        <h1>
+        <h1 key={mode}>
           {isRegister ? (
             <>
               Celý kraj
@@ -127,7 +151,9 @@ export function LoginPage() {
         </div>
 
         <form className="auth__form" onSubmit={handleSubmit} noValidate>
-          <h2 className="auth__title">{isRegister ? 'Nový účet' : 'Přihlášení'}</h2>
+          <h2 key={mode} className="auth__title">
+            {isRegister ? 'Nový účet' : 'Přihlášení'}
+          </h2>
 
           <label className="field">
             <span className="field__label">Uživatelské jméno</span>
