@@ -21,5 +21,5 @@ export async function mockLogin(username: string, password: string): Promise<Log
   if (!user) {
     throw new Error('Neplatné uživatelské jméno nebo heslo')
   }
-  return { token: createMockJwt(user.id, user.username) }
+  return { access_token: createMockJwt(user.id, user.username), token_type: 'bearer' }
 }

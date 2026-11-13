@@ -27,7 +27,9 @@ přístupné jen uvnitř Compose sítě; názvy `api`, `mcp`, `web`, `db` jsou i
 Image vychází z pgvector 0.8.2 pro PostgreSQL 17 a doplňuje PostGIS 3 z PGDG balíčků.
 Skript `db/init/001-extensions.sql` povoluje `postgis` a `vector` při prvním
 vytvoření databáze. Data zůstávají v pojmenovaném volume `db_data` i po `down`.
-Zatím nevytváříme aplikační tabulky ani embedding dimenze; budou součástí migrací API.
+Jednorázová služba `api-init` vytvoří tabulky uživatelů a profilů pomocí existujícího
+`api/create_tables.py` před startem API. Je idempotentní a nemaže existující data.
+Změny existujícího schématu budou vyžadovat Alembic migrace; ty zatím nejsou připravené.
 
 ```sh
 docker compose -f infra/compose.dev.yml exec db psql -U opendata -d opendata -c '\dx'
@@ -55,9 +57,18 @@ docker compose -f infra/compose.dev.yml exec web npm ci
 docker compose -f infra/compose.dev.yml restart web
 ```
 
-Web používá relativní `/api`, takže není potřeba CORS. Mock login zůstává zapnutý
-(`username` / `password`). API zatím poskytuje jen healthchecky a dokumentaci;
-autentizace i dataset endpoints čekají na implementaci. MCP už míří na interní API,
+Web používá relativní `/api`, takže není potřeba CORS. Výchozí login volá skutečné
+API a čte `access_token`. Uživatel se zakládá přes `POST /api/users/` ve Swaggeru,
+například tělem:
+
+```json
+{"username": "developer", "password": "local-password", "profile": {"firstname": "Dev", "lastname": "User"}}
+```
+
+API vydává JWT s `sub`, `username`, `iat`, `exp`. `JWT_SECRET_KEY` v Compose má
+výchozí hodnotu pouze pro lokální vývoj. Mock lze zapnout přes
+`VITE_USE_MOCK_AUTH=true` (`username` / `password`). Uživatelský CRUD zatím nemá
+kontrolu oprávnění; ta je další práce na API. MCP už míří na interní API,
 jeho ukázkové dataset tools proto do implementace endpointů vrací chyby.
 MCP prefix nginx zachovává a SSE má vypnuté bufferování. `/shared` je připojený
 read-only do Python kontejnerů.

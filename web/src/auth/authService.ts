@@ -9,7 +9,7 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK_AUTH !== 'false'
 export const authService = {
   async login(username: string, password: string): Promise<User> {
     const body: LoginRequest = { username, password }
-    const { token } = USE_MOCK
+    const { access_token: token } = USE_MOCK
       ? await mockLogin(username, password)
       : await apiFetch<LoginResponse>('/auth/login', {
           method: 'POST',
