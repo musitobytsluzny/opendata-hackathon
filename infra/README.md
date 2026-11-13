@@ -38,9 +38,10 @@ Prázdná databáze dostane celé schéma. Další změny přidávej jako nové 
 `api/migrations/versions/`.
 
 Pořadí startu je `db → api-init → etl → api → mcp`, nginx čeká na zdravé aplikace.
-`etl/main.py` je jednorázový seed krok v transakci. Zatím ověřuje extensions a
-API tabulky, konkrétní dataset se doplní do `seed(connection)`. Chyba ETL zablokuje
-start API; úspěšný běh má exit code 0. Ruční opakování: `make seed`.
+`etl/main.py` je jednorázový krok pro vytvoření prostorového schématu. Výchozí
+start používá `--schema`, bez downloadů a syntetických dat. `make seed` explicitně
+spustí demo seed v jedné transakci. Chyba ETL zablokuje start API. Podrobnosti
+a rozsah reálných importérů jsou v [ETL README](../etl/README.md).
 ETL nepoužívá `/docker-entrypoint-initdb.d`, takže lze spustit i nad existující DB.
 
 ```sh

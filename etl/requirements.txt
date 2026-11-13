@@ -1,1 +1,7 @@
+geopandas>=1,<2
+sqlalchemy>=2,<3
+geoalchemy2>=0.14,<1
 psycopg[binary]>=3.2,<4
+python-dotenv>=1,<2
+shapely>=2,<3
+pandas>=2,<4
