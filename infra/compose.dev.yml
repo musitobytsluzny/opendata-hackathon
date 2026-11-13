@@ -1,0 +1,98 @@
+name: hpk-dev
+
+services:
+  db:
+    build:
+      context: ..
+      dockerfile: infra/docker/db.Dockerfile
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-opendata}
+      POSTGRES_USER: ${POSTGRES_USER:-opendata}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-opendata_dev}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" && psql -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" -tAc \"SELECT count(*) = 2 FROM pg_extension WHERE extname IN ('postgis', 'vector')\" | grep -qx t"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://opendata:opendata_dev@db:5432/opendata}
+    volumes:
+      - ../api:/app
+      - ../shared:/shared:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/db', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+
+  mcp:
+    build:
+      context: ..
+      dockerfile: infra/docker/mcp.Dockerfile
+    environment:
+      DEBUG: "true"
+      CENTRAL_API_BASE_URL: http://api:8000
+      CENTRAL_API_KEY: ${CENTRAL_API_KEY:-}
+    volumes:
+      - ../mcp:/app
+      - ../shared:/shared:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 10
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/docker/web.Dockerfile
+    environment:
+      VITE_API_URL: /api
+      VITE_USE_MOCK_AUTH: ${VITE_USE_MOCK_AUTH:-true}
+    volumes:
+      - ../web:/app
+      - web_node_modules:/app/node_modules
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5173').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  nginx:
+    image: nginx:1.28-alpine
+    ports:
+      - "127.0.0.1:${HTTP_PORT:-8080}:80"
+    volumes:
+      - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      mcp:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/nginx-health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
+  web_node_modules:
