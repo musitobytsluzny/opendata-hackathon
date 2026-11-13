@@ -50,7 +50,7 @@ Spouštěj je na vývojové databázi, nikoliv na produkci.
 ## Gemini AI Studio + MCP
 
 Do jediného kořenového `.env` vlož `GEMINI_API_KEY` a případně `GEMINI_MODEL`.
-Výchozí model je `gemini-3.8-flash`; dostupnost závisí na klíči, regionu a kvótě.
+Výchozí model je `gemini-3.1-flash-lite`; dostupnost závisí na klíči, regionu a kvótě.
 Klíč se předává pouze kontejneru API, ne webu, MCP, ETL ani `api-init`.
 Není součástí Docker buildu, Git historie ani odpovědí/logovaných chyb.
 

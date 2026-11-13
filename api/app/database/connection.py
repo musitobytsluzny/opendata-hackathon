@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     gemini_api_key: SecretStr = SecretStr("")
-    gemini_model: str = "gemini-3.8-flash"
+    gemini_model: str = "gemini-3.1-flash-lite"
     gemini_timeout_seconds: int = Field(default=60, ge=5, le=180)
     gemini_max_output_tokens: int = Field(default=2048, ge=256, le=8192)
     llm_max_concurrent: int = Field(default=4, ge=1, le=16)
