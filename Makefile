@@ -1,6 +1,6 @@
 COMPOSE = docker compose --env-file .env -f infra/compose.dev.yml
 
-.PHONY: setup up down logs ps build seed config lint format check smoke test-api test-etl
+.PHONY: setup up down logs ps build seed config lint format check smoke test-api test-etl test-mcp check-gemini
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -46,3 +46,9 @@ test-api: setup
 
 test-etl: setup
 	$(COMPOSE) run --rm --no-deps etl python -m unittest discover -s etl/tests -v
+
+test-mcp: setup
+	$(COMPOSE) exec -T mcp python -m unittest discover -s tests -v
+
+check-gemini: setup
+	$(COMPOSE) exec -T api python -m scripts.check_gemini

@@ -20,5 +20,6 @@ Kontroly celého repozitáře včetně Dockeru: `make check`.
 Stránky a MapLibre se načítají samostatně; mapa se aktivuje až při zobrazení.
 Obnovení přihlášení ověřuje `GET /api/auth/me`. Registrace volá `/api/users/`
 a následně `/api/auth/login`; mock je pouze explicitní volba v root `.env`.
-Chat volá autentizovaný `POST /api/chat/ask`. Datový/agentní backend zatím není
-implementovaný a vrací srozumitelnou 503; ukázky na landing page jsou označené.
+Chat volá autentizovaný `POST /api/chat/ask` s omezenou textovou historií.
+Backend používá Gemini a MCP; mapová čísla čte z DB. Klíč Gemini není ve webu.
+Ukázky na landing page zůstávají označené a chyby kvóty/timeoutu se zobrazí v chatu.

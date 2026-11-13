@@ -63,8 +63,10 @@ try:
     api("GET", "/auth/me", status=401, token="invalid.jwt.signature")
     api("POST", "/chat/ask", {"question": "Test"}, 401)
     api("POST", "/chat/ask", {"question": "   "}, 422, token=token)
-    unavailable = api("POST", "/chat/ask", {"question": "Kolik je obyvatel?"}, 503, token=token)
-    assert "Datové zdroje" in unavailable["detail"]
+    configured = api("GET", "/chat/status", token=token)["configured"]
+    if not configured:
+        unavailable = api("POST", "/chat/ask", {"question": "Kolik je obyvatel?"}, 503, token=token)
+        assert "Gemini API" in unavailable["detail"]
     segment = login["access_token"].split(".")[1]
     claims = json.loads(base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4)))
     assert claims["sub"] == str(user["id"]) and claims["username"] == username

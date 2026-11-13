@@ -6,3 +6,6 @@ pydantic-settings>=2,<3
 alembic>=1,<2
 pwdlib[argon2]>=0.2,<1
 PyJWT>=2,<3
+google-genai>=1.60,<2
+mcp>=1.26,<2
+httpx>=0.28,<1

@@ -45,6 +45,7 @@ jobs:
       - run: make up
       - run: make smoke
       - run: make test-api
+      - run: make test-mcp
       - run: make test-etl
       - if: failure()
         run: docker compose logs --no-color --tail 150
