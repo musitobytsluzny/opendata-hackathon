@@ -9,11 +9,15 @@ import {
 import {
   Map as MlMap,
   Marker,
+  setWorkerUrl,
   type LngLatLike,
   type MapLayerMouseEvent,
   type StyleSpecification,
 } from 'maplibre-gl'
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
+
+setWorkerUrl(workerUrl)
 import {
   KRAJ_BOUNDS,
   OKRESY,
