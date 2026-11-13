@@ -1,8 +1,8 @@
 import { apiFetch } from '../api/client'
 import { decodeJwt, isExpired } from './jwt'
-import { mockLogin } from './mockAuth'
+import { mockLogin, mockRegister } from './mockAuth'
 import { tokenStorage } from './tokenStorage'
-import type { LoginRequest, LoginResponse, User } from './types'
+import type { LoginRequest, LoginResponse, RegisterRequest, User } from './types'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_AUTH !== 'false'
 
@@ -16,6 +16,21 @@ export const authService = {
           body: JSON.stringify(body),
         })
 
+    return this.acceptToken(token)
+  },
+
+  async register(username: string, email: string, password: string): Promise<User> {
+    const body: RegisterRequest = { username, email, password }
+    const { token } = USE_MOCK
+      ? await mockRegister(username, email, password)
+      : await apiFetch<LoginResponse>('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        })
+    return this.acceptToken(token)
+  },
+
+  acceptToken(token: string): User {
     tokenStorage.set(token)
     const user = this.getCurrentUser()
     if (!user) {

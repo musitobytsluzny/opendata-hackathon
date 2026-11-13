@@ -11,6 +11,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await authService.login(username, password))
   }, [])
 
+  const register = useCallback(async (username: string, email: string, password: string) => {
+    setUser(await authService.register(username, email, password))
+  }, [])
+
   const logout = useCallback(() => {
     authService.logout()
     setUser(null)
@@ -22,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
   }, [])
 
-  const value = useMemo(() => ({ user, login, logout }), [user, login, logout])
+  const value = useMemo(() => ({ user, login, register, logout }), [user, login, register, logout])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

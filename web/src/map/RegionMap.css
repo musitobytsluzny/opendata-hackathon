@@ -1,0 +1,105 @@
+.region-map {
+  position: absolute;
+  inset: 0;
+}
+
+.town {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 8px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+}
+
+.town--major {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.town__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+  flex: none;
+}
+
+.town--major .town__dot {
+  width: 10px;
+  height: 10px;
+}
+
+.value-marker {
+  pointer-events: none;
+}
+
+.value-pill {
+  display: block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+  box-shadow: var(--shadow);
+  transition: transform 0.25s var(--ease-out), background-color 0.25s var(--ease-out);
+  animation: pill-in 0.5s var(--ease-out) both;
+}
+
+.value-marker.is-hovered .value-pill {
+  background: var(--blue-3);
+  color: #fff;
+  transform: scale(1.12);
+}
+
+@keyframes pill-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.region-map--values .town:not(.town--major) {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .town:not(.town--major) {
+    display: none;
+  }
+
+  .town--major {
+    font-size: 14px;
+  }
+}
+
+.region-map--compact .town:not(.town--major) {
+  display: none;
+}
+
+.region-map--compact .town--major {
+  font-size: 13px;
+}
+
+.region-map--compact .value-marker:not(.is-hovered) {
+  display: none;
+}
+
+.region-map--compact .value-marker.is-focused {
+  display: block;
+}
+
+.value-marker.is-focused .value-pill {
+  background: var(--blue-3);
+  color: #fff;
+  transform: scale(1.12);
+}

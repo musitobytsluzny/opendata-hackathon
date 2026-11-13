@@ -1,27 +1,32 @@
+import { useEffect } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { AuthProvider } from './auth/AuthProvider'
-import { RequireAuth } from './auth/RequireAuth'
-import { tokenStorage } from './auth/tokenStorage'
+import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
+import { MapPage } from './pages/MapPage'
+import { navigate, routes, usePath } from './router/router'
 
-function Home() {
-  const { user, logout } = useAuth()
-  return (
-    <div>
-      <p>Přihlášen jako: {user?.username}</p>
-      <p>Token:</p>
-      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{tokenStorage.get()}</pre>
-      <button onClick={logout}>Odhlásit</button>
-    </div>
-  )
+function Routes() {
+  const path = usePath()
+  const { user } = useAuth()
+
+  const target =
+    path === routes.map && !user ? routes.login : path === routes.login && user ? routes.map : null
+
+  useEffect(() => {
+    if (target) navigate(target, true)
+  }, [target])
+
+  if (target) return null
+  if (path === routes.map) return <MapPage />
+  if (path === routes.login) return <LoginPage />
+  return <LandingPage />
 }
 
 export default function App() {
   return (
     <AuthProvider>
-      <RequireAuth fallback={<LoginPage />}>
-        <Home />
-      </RequireAuth>
+      <Routes />
     </AuthProvider>
   )
 }
