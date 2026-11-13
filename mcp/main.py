@@ -45,12 +45,14 @@ app = FastAPI(
 
 
 @app.get("/health")
+@app.get("/mcp/health")
 async def health_check() -> dict:
     """Basic health check endpoint."""
     return {"status": "ok", "server": "OpenData MCP Server"}
 
 
 # Mount the MCP SSE transport sub-application provided by FastMCP
+# The SDK includes the ASGI mount prefix in its advertised message URL.
 app.mount("/mcp", mcp_server.sse_app())
 
 
