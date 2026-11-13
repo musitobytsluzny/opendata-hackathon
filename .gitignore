@@ -1,1 +1,15 @@
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Environment variables
 .env
+
+# IDE
+.vscode/
+.idea/
+
+# Alembic
+*.db
