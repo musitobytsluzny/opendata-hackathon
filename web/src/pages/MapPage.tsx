@@ -272,7 +272,7 @@ export function MapPage() {
     }))
     setLoadingIn(sid)
     try {
-      const answer = await ask(q, request.signal)
+      const answer = await ask(q, messages, request.signal)
       if (request.signal.aborted) return
       const id = uid()
       updateSession(sid, (s) => ({

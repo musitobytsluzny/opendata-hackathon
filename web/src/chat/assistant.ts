@@ -22,10 +22,10 @@ export type Message =
 export const PENDING_QUESTION_KEY = 'pending_question'
 
 export const SUGGESTIONS = [
-  'Kde v kraji za posledních 10 let přibylo nejvíc obyvatel?',
-  'Jaká je nezaměstnanost v jednotlivých okresech?',
-  'Kolik mateřských škol je v každém okrese?',
-  'Kde se v kraji staví nejvíc nových bytů?',
+  'Kolik obyvatel mají dostupné obce v jednotlivých okresech?',
+  'Jaký je podíl seniorů v dostupných obcích?',
+  'Kde mají dostupné obce nejvyšší podíl zeleně?',
+  'Jaká data jsou právě načtená a která jsou jen ukázková?',
 ]
 
 const sampleAnswers: { match: RegExp; question: string; answer: Answer }[] = [
@@ -126,10 +126,23 @@ const sampleAnswers: { match: RegExp; question: string; answer: Answer }[] = [
 
 export const SAMPLES = sampleAnswers.map(({ question, answer }) => ({ question, answer }))
 
-export async function ask(question: string, signal?: AbortSignal): Promise<Answer> {
+export async function ask(
+  question: string,
+  history: Message[] = [],
+  signal?: AbortSignal,
+): Promise<Answer> {
   return apiFetch<Answer>('/chat/ask', {
     method: 'POST',
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({
+      question,
+      history: history
+        .filter((message) => message.role !== 'error')
+        .slice(-10)
+        .map((message) => ({
+          role: message.role,
+          text: (message.role === 'assistant' ? message.answer.text : message.text).slice(0, 2000),
+        })),
+    }),
     signal,
   })
 }

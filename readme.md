@@ -40,3 +40,9 @@ Python používá Ruff (`pyproject.toml`, `requirements-dev.txt`), web Oxlint
 `.editorconfig` sjednocuje odsazení a konce řádků.
 
 Podrobnosti: [infrastruktura](infra/README.md), [ETL](etl/README.md).
+
+## LLM
+
+Gemini AI Studio se nastavuje přes `GEMINI_API_KEY` v kořenovém `.env`.
+Po `make up` ověř přístup pomocí `make check-gemini`. Web nikdy nedostává API klíč.
+Podrobnosti o MCP nástrojích, datech a limitech jsou v [API README](api/README.md).

@@ -4,6 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.controllers.auth_controller import router as auth_router
 from app.controllers.chat_controller import router as chat_router
+from app.controllers.data_controller import router as data_router
 from app.controllers.user_controller import router as user_router
 from app.database.connection import engine
 
@@ -16,6 +17,7 @@ app = FastAPI(
 app.include_router(user_router)
 app.include_router(auth_router)
 app.include_router(chat_router)
+app.include_router(data_router)
 
 
 @app.get("/")
