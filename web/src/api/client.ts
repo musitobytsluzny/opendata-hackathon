@@ -1,6 +1,6 @@
 import { tokenStorage } from '../auth/tokenStorage'
 
-export const API_URL = import.meta.env.VITE_API_URL ?? ''
+export const API_URL = (import.meta.env.VITE_API_URL ?? '/api').replace(/\/+$/, '')
 
 export const UNAUTHORIZED_EVENT = 'auth:unauthorized'
 
@@ -12,28 +12,43 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+type ApiRequest = RequestInit & { auth?: boolean }
+
+export async function apiFetch<T>(path: string, options: ApiRequest = {}): Promise<T> {
+  const { auth = true, ...init } = options
   const headers = new Headers(init.headers)
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
 
-  const token = tokenStorage.get()
+  const token = auth ? tokenStorage.get() : null
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
   }
 
   const res = await fetch(`${API_URL}${path}`, { ...init, headers })
 
-  if (res.status === 401) {
+  if (res.status === 401 && auth) {
     tokenStorage.clear()
     window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
     throw new ApiError(401, 'Nepřihlášen')
   }
 
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new ApiError(res.status, text || res.statusText)
+    const body = await res.json().catch(() => null)
+    const detail = body?.detail
+    const message =
+      typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail
+              .map(
+                (error: { loc?: string[]; msg?: string }) =>
+                  `${error.loc?.slice(1).join('.') ?? ''}: ${error.msg ?? 'Neplatná hodnota'}`,
+              )
+              .join('; ')
+          : `Požadavek selhal (${res.status}). Zkuste to znovu.`
+    throw new ApiError(res.status, message)
   }
 
   if (res.status === 204) return undefined as T

@@ -1,4 +1,3 @@
-
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -7,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from app.database.connection import settings
 from app.models.user import User
-
 
 password_hash = PasswordHash.recommended()
 
@@ -31,15 +29,9 @@ def create_access_token(user_id: int, username: str):
         "sub": str(user_id),
         "username": username,
         "iat": now,
-        "exp": now + timedelta(
-            minutes=settings.access_token_expire_minutes
-        )
+        "exp": now + timedelta(minutes=settings.access_token_expire_minutes),
     }
 
-    token = jwt.encode(
-        payload,
-        settings.jwt_secret_key,
-        algorithm=settings.jwt_algorithm
-    )
+    token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
     return token

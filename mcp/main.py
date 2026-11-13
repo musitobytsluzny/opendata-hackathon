@@ -1,16 +1,9 @@
-import sys
-from pathlib import Path
-
-# Add 'mcp' directory to sys.path to avoid name collision with official 'mcp' SDK package
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI
 import uvicorn
-
 from config import settings
+from fastapi import FastAPI
 from prompts import register_all_prompts
 from resources import register_all_resources
 from server import mcp_server

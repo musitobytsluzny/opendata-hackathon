@@ -1,15 +1,10 @@
-
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.profile import (
-    ProfileCreate,
-    ProfileUpdate,
-    ProfileRead
-)
+from app.schemas.profile import ProfileCreate, ProfileRead, ProfileUpdate
 
 
 class UserCreate(BaseModel):
-    username: str
+    username: str = Field(min_length=1, max_length=50)
     password: str = Field(min_length=8)
     profile: ProfileCreate
 

@@ -1,32 +1,24 @@
-# React + TypeScript + Vite
+# Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React, TypeScript a Vite. Konfigurace se načítá z kořenového `.env`, lokální
+`web/.env` se nepoužívá. Do klienta Vite předává pouze `VITE_*` proměnné.
 
-Currently, two official plugins are available:
+Pro celý stack používej `make up` v kořeni repozitáře. Nginx zajišťuje `/api/`
+a `/mcp/`; otevři http://localhost:8080/. Login výchozí konfigurace volá skutečné
+API. Mock režim se zapíná přes `VITE_USE_MOCK_AUTH=true` v kořenovém `.env`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm ci --prefix web
+npm run lint --prefix web
+npm run format:check --prefix web
+npm run build --prefix web
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Formátování používá společnou kořenovou konfiguraci Prettieru; Python řeší Ruff.
+Kontroly celého repozitáře včetně Dockeru: `make check`.
+
+Stránky a MapLibre se načítají samostatně; mapa se aktivuje až při zobrazení.
+Obnovení přihlášení ověřuje `GET /api/auth/me`. Registrace volá `/api/users/`
+a následně `/api/auth/login`; mock je pouze explicitní volba v root `.env`.
+Chat volá autentizovaný `POST /api/chat/ask`. Datový/agentní backend zatím není
+implementovaný a vrací srozumitelnou 503; ukázky na landing page jsou označené.

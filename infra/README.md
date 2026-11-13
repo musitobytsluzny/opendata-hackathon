@@ -3,22 +3,25 @@
 Z kořene repozitáře (Docker Desktop / Docker Engine s Compose):
 
 ```sh
-cp infra/.env.example infra/.env
-docker compose --env-file infra/.env -f infra/compose.dev.yml up -d --build --wait
-python3 infra/smoke.py
+make setup
+make up
+make smoke
 ```
 
-| Adresa | Služba |
-| --- | --- |
-| http://localhost:8080/ | Vite / React, včetně hot reloadu přes WebSocket |
-| http://localhost:8080/api/docs | API Swagger; API prefix nginx odstraňuje, ASGI root_path je `/api` |
-| http://localhost:8080/api/health/db | Kontrola připojení a obou DB extensions |
-| http://localhost:8080/mcp/health | MCP healthcheck |
-| http://localhost:8080/mcp/sse | MCP SSE transport; zprávy na `/mcp/messages/` |
-| localhost:5432 | PostgreSQL 17, databáze a uživatel `opendata` |
+| Adresa                              | Služba                                                             |
+| ----------------------------------- | ------------------------------------------------------------------ |
+| http://localhost:8080/              | Vite / React, včetně hot reloadu přes WebSocket                    |
+| http://localhost:8080/api/docs      | API Swagger; API prefix nginx odstraňuje, ASGI root_path je `/api` |
+| http://localhost:8080/api/health/db | Kontrola připojení a obou DB extensions                            |
+| http://localhost:8080/mcp/health    | MCP healthcheck                                                    |
+| http://localhost:8080/mcp/sse       | MCP SSE transport; zprávy na `/mcp/messages/`                      |
+| localhost:5432                      | PostgreSQL 17, databáze a uživatel `opendata`                      |
 
-Všechny příkazy níže lze doplnit `--env-file infra/.env`, pokud měníš výchozí hodnoty.
-Při změně `HTTP_PORT` nastav pro smoke test např. `BASE_URL=http://localhost:8090`.
+Jediná konfigurace je v kořenovém `.env` (vzor `.env.example`). `make setup`
+existující konfiguraci nepřepisuje. `COMPOSE_FILE` umožňuje používat
+`docker compose` přímo z kořene; Makefile předává cestu i env soubor explicitně.
+`make smoke` zjistí publikovaný HTTP port automaticky. Při přímém spuštění
+`python3 infra/smoke.py` lze nastavit `BASE_URL=http://localhost:8090`.
 Porty nginx i DB jsou publikované pouze na loopback. API, MCP a Vite mají porty
 přístupné jen uvnitř Compose sítě; názvy `api`, `mcp`, `web`, `db` jsou interní DNS.
 
@@ -30,6 +33,12 @@ vytvoření databáze. Data zůstávají v pojmenovaném volume `db_data` i po `
 Jednorázová služba `api-init` vytvoří tabulky uživatelů a profilů pomocí existujícího
 `api/create_tables.py` před startem API. Je idempotentní a nemaže existující data.
 Změny existujícího schématu budou vyžadovat Alembic migrace; ty zatím nejsou připravené.
+
+Pořadí startu je `db → api-init → etl → api → mcp`, nginx čeká na zdravé aplikace.
+`etl/main.py` je jednorázový seed krok v transakci. Zatím ověřuje extensions a
+API tabulky, konkrétní dataset se doplní do `seed(connection)`. Chyba ETL zablokuje
+start API; úspěšný běh má exit code 0. Ruční opakování: `make seed`.
+ETL nepoužívá `/docker-entrypoint-initdb.d`, takže lze spustit i nad existující DB.
 
 ```sh
 docker compose -f infra/compose.dev.yml exec db psql -U opendata -d opendata -c '\dx'
@@ -43,8 +52,11 @@ doplnit bez mazání dat:
 docker compose -f infra/compose.dev.yml exec db psql -U opendata -d opendata -c 'CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS vector;'
 ```
 
-`POSTGRES_*` nastavují databázi při první inicializaci. Při změně přihlašovacích
-údajů uprav také `DATABASE_URL`; pro speciální znaky použij URL encoding.
+`POSTGRES_*` nastavují databázi při první inicializaci. Šablona `.env` skládá
+`DATABASE_URL` ze stejných proměnných; pro speciální znaky v URL použij URL encoding.
+Hostname `db` funguje uvnitř Dockeru. Při spouštění Python skriptů přímo na hostiteli
+přepiš `DATABASE_URL` na připojení přes `localhost` a publikovaný DB port.
+API a MCP načítají kořenový `.env`; proměnné procesu mají přednost.
 
 ## Vývoj aplikací
 
@@ -62,7 +74,11 @@ API a čte `access_token`. Uživatel se zakládá přes `POST /api/users/` ve Sw
 například tělem:
 
 ```json
-{"username": "developer", "password": "local-password", "profile": {"firstname": "Dev", "lastname": "User"}}
+{
+  "username": "developer",
+  "password": "local-password",
+  "profile": { "firstname": "Dev", "lastname": "User" }
+}
 ```
 
 API vydává JWT s `sub`, `username`, `iat`, `exp`. `JWT_SECRET_KEY` v Compose má

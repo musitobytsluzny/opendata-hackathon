@@ -1,11 +1,9 @@
-
-from sqlalchemy.orm import Session
 from pwdlib import PasswordHash
+from sqlalchemy.orm import Session
 
-from app.models.user import User
 from app.models.profile import Profile
+from app.models.user import User
 from app.schemas.user import UserCreate
-
 
 password_hash = PasswordHash.recommended()
 
@@ -18,10 +16,7 @@ def create_user(db: Session, user_data: UserCreate):
     user = User(
         username=user_data.username,
         password_hash=hashed_password,
-        profile=Profile(
-            firstname=user_data.profile.firstname,
-            lastname=user_data.profile.lastname
-        )
+        profile=Profile(firstname=user_data.profile.firstname, lastname=user_data.profile.lastname),
     )
 
     # Uložíme obě propojené tabulky
@@ -30,6 +25,7 @@ def create_user(db: Session, user_data: UserCreate):
     db.refresh(user)
 
     return user
+
 
 def get_users(db: Session):
     return db.query(User).all()
@@ -48,9 +44,7 @@ def update_user(db: Session, user_id: int, user_data):
     update_data = user_data.model_dump(exclude_unset=True)
 
     if "password" in update_data:
-        update_data["password_hash"] = password_hash.hash(
-            update_data.pop("password")
-        )
+        update_data["password_hash"] = password_hash.hash(update_data.pop("password"))
 
     profile_data = update_data.pop("profile", None)
 
@@ -65,6 +59,7 @@ def update_user(db: Session, user_id: int, user_data):
     db.refresh(user)
 
     return user
+
 
 def delete_user(db: Session, user_id: int):
     user = get_user_by_id(db, user_id)

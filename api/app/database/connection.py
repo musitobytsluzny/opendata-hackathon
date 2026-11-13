@@ -1,8 +1,9 @@
+from pathlib import Path
 
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 
 class Settings(BaseSettings):
@@ -13,23 +14,17 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore"
+        env_file=Path(__file__).resolve().parents[3] / ".env", extra="ignore"
     )
 
 
 settings = Settings()
 
 engine = create_engine(
-    make_url(settings.database_url).set(drivername="postgresql+psycopg"),
-    pool_pre_ping=True
+    make_url(settings.database_url).set(drivername="postgresql+psycopg"), pool_pre_ping=True
 )
 
-SessionLocal = sessionmaker(
-    bind=engine,
-    autoflush=False,
-    autocommit=False
-)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 class Base(DeclarativeBase):

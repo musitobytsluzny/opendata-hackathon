@@ -1,10 +1,9 @@
-
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProfileCreate(BaseModel):
-    firstname: str
-    lastname: str
+    firstname: str = Field(min_length=1, max_length=100)
+    lastname: str = Field(min_length=1, max_length=100)
 
 
 class ProfileUpdate(BaseModel):

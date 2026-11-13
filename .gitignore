@@ -1,12 +1,47 @@
+# Local configuration (the only tracked template is at the repository root).
 .env
 .env.*
-!.env.example
+!/.env.example
+*.local
+
+# Python environments, bytecode and tooling.
 __pycache__/
 *.py[cod]
 .venv/
+venv/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+
+# JavaScript dependencies and build output.
 node_modules/
 dist/
-.DS_Store
-.vscode/
-.idea/
+dist-ssr/
+build/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Local ETL inputs/output, database dumps and logs.
+/etl/data/
+/etl/output/
+/backups/
 *.db
+*.dump
+*.log
+logs/
+
+# Editors and operating systems.
+/.vscode/*
+!/.vscode/settings.json
+!/.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
