@@ -80,58 +80,6 @@
   width: 100%;
   color: #8cae7e;
 }
-.map-layers {
-  position: absolute;
-  top: 72px;
-  right: 16px;
-  z-index: 3;
-  max-width: 240px;
-  max-height: 42vh;
-  overflow: auto;
-  padding: 12px;
-  border: 1px solid #ffffff20;
-  border-radius: 12px;
-  background: #172019e8;
-  color: #e8eee5;
-  backdrop-filter: blur(16px);
-  font-size: 12px;
-}
-.map-layers summary {
-  cursor: pointer;
-}
-.map-layers label {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding-top: 10px;
-}
-.map-layers label span {
-  overflow-wrap: anywhere;
-}
-.map-layers button {
-  color: inherit;
-  background: transparent;
-  border: 1px solid #ffffff30;
-  border-radius: 6px;
-  padding: 5px 7px;
-  font: inherit;
-  cursor: pointer;
-}
-.map-layers__tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-.map-layers [aria-pressed='true'] {
-  border-color: #adc69d;
-  background: #adc69d22;
-}
-.map-layers__status {
-  margin: 8px 0 0;
-  line-height: 1.5;
-}
-
 .result-view__pie svg {
   display: block;
   width: min(100%, 260px);

@@ -59,10 +59,22 @@ def fetch_and_load_facilities(force_download=False):
                 ("vyšší odborná", "college"),
             ]:
                 frame.loc[levels.str.contains(phrase, regex=False), "amenity"] = subtype
+        frame["search_text"] = frame["name"].map(institution_aliases)
         frame["publisher"] = "ČÚZK · ZABAGED"
         frame["source_url"] = f"{SERVICE}/{layer}"
         frames.append(
-            frame[["id", "name", "category", "amenity", "publisher", "source_url", "geometry"]]
+            frame[
+                [
+                    "id",
+                    "name",
+                    "category",
+                    "amenity",
+                    "publisher",
+                    "source_url",
+                    "search_text",
+                    "geometry",
+                ]
+            ]
         )
     status = fetch_layer(
         RUIAN,
@@ -127,3 +139,25 @@ def load_pmdp_stops(force_download=False):
         return save_geodataframe(
             gpd.GeoDataFrame(records, geometry="geom", crs=4326), "facility_poi"
         )
+
+
+def institution_aliases(name):
+    """Search aliases derived mechanically from official names, not guessed addresses."""
+    import unicodedata
+
+    folded = "".join(
+        c
+        for c in unicodedata.normalize("NFKD", str(name).casefold())
+        if not unicodedata.combining(c)
+    )
+    aliases = []
+    for phrase, abbreviation in [
+        ("vyssi odborna skola", "vos"),
+        ("stredni prumyslova skola elektrotechnicka", "spse"),
+        ("stredni prumyslova skola", "sps"),
+        ("zakladni skola", "zs"),
+        ("materska skola", "ms"),
+    ]:
+        if phrase in folded:
+            aliases.append(abbreviation)
+    return " ".join(aliases)

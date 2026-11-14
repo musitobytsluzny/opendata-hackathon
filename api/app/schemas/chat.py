@@ -47,6 +47,7 @@ class MapAnswer(BaseModel):
 
 
 class ChatAnswer(BaseModel):
+    result_ids: list[str] = Field(default_factory=list, max_length=8)
     text: str
     layer_actions: list["LayerAction"] = Field(default_factory=list, max_length=12)
     artifacts: list["ChatArtifact"] = Field(default_factory=list, max_length=12)
@@ -71,7 +72,7 @@ class ChatArtifact(BaseModel):
     result_id: str = Field(max_length=60)
     title: str = Field(max_length=300)
     view: Literal["table", "map", "bar", "line", "pie"] = "table"
-    columns: list[ResultColumn] = Field(max_length=8)
+    columns: list[ResultColumn] = Field(max_length=12)
     rows: list[dict[str, str | Annotated[float, Field(allow_inf_nan=False)] | bool | None]] = Field(
         max_length=50
     )

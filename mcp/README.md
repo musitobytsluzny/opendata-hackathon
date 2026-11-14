@@ -112,3 +112,68 @@ obálce s přesahem, PMDP pouze Plzni a obsluhovanému okolí. MHD mimo tato dat
 nepředstírá. Dostupnost lékáren a obchodů závisí na skutečně načtených OSM datech;
 prázdný nález není důkaz neexistence. Data nepotvrzují ordinační dobu, kapacitu škol,
 aktuální provoz, dostupnou péči ani odjezdy spojů.
+
+## Pěší cesta do školy
+
+`route_context(origin_id, destination_id, corridor_m=30)` získá skutečnou pěší
+trasu ze služby [FOSSGIS OSRM foot](https://routing.openstreetmap.de/) a kontroluje
+koridor 10–100 metrů od celé trasy přes PostGIS. Automobilová trasa ani kontrola
+okolí obou konců tento výpočet nenahrazuje. Výpadek vrací chybu, nikoli odhad.
+
+```sh
+docker compose run --rm --no-deps etl python -m etl.main --dataset route-context
+```
+
+Vrací mapu trasy, dostupné záplavové zóny, vodní toky, komunikace vyšších tříd,
+mapované přechody a signalizace, explicitní `sidewalk=no`/`lit=no` i chybějící
+údaje o chodníku. Nenahraná vrstva má NULL, nulový nález v načtené vrstvě má 0.
+Počty označují mapové prvky v koridoru, nikoliv počet nebezpečí či nutných křížení.
+Samostatná pěší cesta může vést vedle silnice bez chodníku. Mosty, výškové oddělení,
+aktuální provoz, rozhled, funkčnost zařízení ani vhodnost cesty pro dítě nejsou
+ověřené. Vchody do budov nejsou potvrzené, přichycení k pěší síti je do 150 m.
+Výstup se skládá přímo z naměřených faktů, aby model nepřekládal chybějící chodník
+jako zákaz chůze nebo nulu jako potvrzení bezpečnosti.
+
+## Navazující porovnání a živý audit
+
+`compare_results` u parcel vyžaduje výsledky `prevalidate_parcel` pro obě skutečné
+parcely. Kliknutí samo není kontrolou prostorových omezení. Pro porovnání dojezdů
+se musí počítat zvlášť každý směr parcela → škola. `comparison_summary` sestaví
+z ověřených referencí výměry, průniky s vrstvami, směry tras a neznámé údaje.
+Celková výměra se nikdy nepřevádí na velikost zahrady nebo stavební povolení.
+
+Chat předává také reference nástrojů, které nebyly samostatně vykresleny; závěrečné
+shrnutí proto může použít dříve naměřené dojezdy. Hledání institucí podporuje
+VOŠ/SPŠE/ZŠ/MŠ a původní kampus se v seznamu okolních škol vynechává i napříč zdroji.
+
+`make validate-demo` spouští explicitní placený/kvótovaný živý audit přes nakonfigurované
+Gemini a skutečné MCP služby. Vyžaduje běžící stack a načtená data; není součástí CI.
+Vytvoří dočasného uživatele, po běhu ho odstraní a zapíše `api/demo-validation.json`
+bez přihlašovacích údajů a geometrií. Všech 17 dotazů, výsledky a hranice ověření
+jsou v [protokolu demonstrace](../reports/demo-validation.md).
+
+## Parcela stejně vzdálená od dvou institucí
+
+`balanced_parcels(first_id, second_id)` prohledá všechny načtené
+parcely a seřadí je podle absolutního rozdílu vzdáleností. Geometrie pro mapu se
+načítají až pro výsledných nejvýše deset parcel. Pro výslovně místní hledání použij `balanced_parcels_nearby`, výchozí radius
+je 5 km od středu institucí; maximum je 20 km. Oddělené nástroje brání tomu,
+aby agent při požadavku na celou databázi svévolně zúžil radius.
+
+Metrikou je geodetická vzdálenost WGS84 od vnitřního bodu parcely k ověřenému bodu
+každé instituce. Tolerance rozdílu je explicitní, výchozí 25 m; porovnává se před
+zaokrouhlením. `tolerance_m=0` vyžaduje rovnost vypočtených hodnot. Pokud se rovnost
+nebo tolerance nenajde, nejbližší kandidáti zůstávají označení `within_tolerance=false`.
+Číselná přesnost výpočtu nevyjadřuje geodetickou přesnost podkladů ani rovnost v terénu.
+
+Výstup obsahuje obě vzdálenosti, jejich rozdíl, číslo parcely, kód KÚ, výměru a
+polygon. Nejde o délku cesty, vzdálenost od hranice či potvrzeného vchodu, dostupnost
+k prodeji ani zastavitelnost. Výběr podle vzdušné vzdálenosti není globálně optimální
+výběr podle dojezdu. Dojezd lze následně změřit od každé kandidátní parcely k oběma
+institucím. Prohledání celé databáze nezahrnuje chybějící nebo dosud nenačtená data.
+
+Živý scénář lze opakovat:
+
+```sh
+docker compose exec -T api python -m scripts.validate_demo --only balanced-parcels
+```

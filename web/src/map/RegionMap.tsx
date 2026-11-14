@@ -25,7 +25,6 @@ import mapWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 import {
-  CZECH_CENTER,
   cesko,
   KRAJ_BOUNDS,
   OKRESY,
@@ -82,6 +81,8 @@ export type RegionMapProps = {
   viewKey?: string
   label?: string
   basemap?: 'satellite' | 'ortho' | 'dark'
+  showCadastre?: boolean
+  cadastreOpacity?: number
   reducedMotion?: boolean
   onSelect?: (id: OkresId) => void
   className?: string
@@ -121,6 +122,8 @@ function visibility(on: boolean) {
 }
 
 const ORTOFOTO = 'https://ags.cuzk.cz/arcgis1/rest/services/ORTOFOTO_WM/MapServer/tile/{z}/{y}/{x}'
+const CADASTRE =
+  'https://ags.cuzk.cz/arcgis/rest/services/RUIAN/MapServer/export?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256%2C256&format=png32&transparent=true&layers=show%3A5&f=image'
 
 const style: StyleSpecification = {
   version: 8,
@@ -147,6 +150,15 @@ const style: StyleSpecification = {
       attribution:
         'Ortofoto © <a href="https://cuzk.gov.cz" target="_blank" rel="noreferrer">ČÚZK</a>',
     },
+    cadastre: {
+      type: 'raster',
+      tiles: [CADASTRE],
+      tileSize: 256,
+      maxzoom: 19,
+      bounds: [12.09, 48.55, 18.87, 51.06],
+      attribution:
+        'Katastrální parcely © <a href="https://ags.cuzk.cz/arcgis/rest/services/RUIAN/MapServer" target="_blank" rel="noreferrer">ČÚZK · RÚIAN</a>',
+    },
   },
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': '#0d120e' } },
@@ -158,6 +170,14 @@ const style: StyleSpecification = {
       source: 'orto',
       minzoom: 11,
       paint: { 'raster-fade-duration': 120 },
+    },
+    {
+      id: 'cadastre',
+      type: 'raster',
+      source: 'cadastre',
+      minzoom: 13,
+      layout: { visibility: 'none' },
+      paint: { 'raster-fade-duration': 120, 'raster-opacity': 0.72 },
     },
   ],
 }
@@ -185,6 +205,8 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     viewKey = 'default',
     label = 'Mapa Plzeňského kraje',
     basemap,
+    showCadastre = false,
+    cadastreOpacity = 0.72,
     reducedMotion = false,
     onSelect,
     className,
@@ -287,7 +309,7 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
         [28, 58],
       ],
       minZoom: 6,
-      maxZoom: 17,
+      maxZoom: 19,
       dragRotate: false,
       pitchWithRotate: false,
       fadeDuration: 0,
@@ -309,10 +331,13 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
 
     m.on('error', (event) => {
       const sourceId = (event as unknown as { sourceId?: string }).sourceId
-      if (sourceId === 's2' || sourceId === 'orto') setTileError(true)
+      if (sourceId === 's2' || sourceId === 'orto' || sourceId === 'cadastre') setTileError(true)
     })
     m.on('sourcedata', (event) => {
-      if ((event.sourceId === 's2' || event.sourceId === 'orto') && event.isSourceLoaded)
+      if (
+        (event.sourceId === 's2' || event.sourceId === 'orto' || event.sourceId === 'cadastre') &&
+        event.isSourceLoaded
+      )
         setTileError(false)
     })
 
@@ -613,11 +638,13 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     m.setLayoutProperty('flat', 'visibility', visibility(flat))
     for (const id of ['s2', 'orto', 'land'])
       m.setLayoutProperty(id, 'visibility', visibility(!flat))
+    m.setLayoutProperty('cadastre', 'visibility', visibility(showCadastre))
+    m.setPaintProperty('cadastre', 'raster-opacity', cadastreOpacity)
     m.setPaintProperty('okresy-fill', 'fill-opacity', fillOpacity(flat))
     m.setPaintProperty('okresy-fill', 'fill-color', fillColor(activePalette))
     // Reuse coarse satellite tiles outside Czech ortho coverage.
     m.setLayerZoomRange('s2', 0, 24)
-  }, [activeBasemap, activePalette, ready])
+  }, [activeBasemap, activePalette, cadastreOpacity, ready, showCadastre])
 
   useEffect(() => {
     const m = map.current
@@ -654,13 +681,15 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     const m = map.current
     if (!m || !drift || !ready || motionReduced) return
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const baseBearing = m.getBearing()
-    const baseZoom = m.getZoom()
+    let baseCenter = m.getCenter()
+    let baseBearing = m.getBearing()
+    let basePitch = m.getPitch()
+    let baseZoom = m.getZoom()
     const poses = [
-      { bearing: -5, pitch: 24, zoom: -0.12 },
-      { bearing: 4, pitch: 32, zoom: 0.08 },
-      { bearing: 7, pitch: 18, zoom: -0.18 },
-      { bearing: -3, pitch: 28, zoom: 0.02 },
+      { bearing: -1.5, zoom: 0.04 },
+      { bearing: 1.5, zoom: -0.04 },
+      { bearing: 0.5, zoom: 0.025 },
+      { bearing: -0.5, zoom: -0.025 },
     ]
     let step = 0
     let disposed = false
@@ -670,29 +699,42 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     const play = () => {
       if (disposed || document.hidden || media.matches || m.isMoving()) return
       const pose = poses[step % poses.length]
-      const duration = step === 0 ? 8000 : 14000
+      const duration = step === 0 ? 9000 : 16000
       step += 1
       ownsAnimation = true
-      // A shallow orbit with dolly and tilt, anchored to Czechia. Native camera
-      // interpolation keeps the imagery and labels synchronized in one render loop.
       m.easeTo({
         bearing: baseBearing + pose.bearing,
-        pitch: pose.pitch,
+        pitch: basePitch,
         zoom: Math.max(m.getMinZoom(), baseZoom + pose.zoom),
-        around: CZECH_CENTER,
+        around: baseCenter,
         duration,
         easing: (t) => (1 - Math.cos(Math.PI * t)) / 2,
       })
     }
     const schedule = () => {
-      ownsAnimation = false
+      if (ownsAnimation) {
+        ownsAnimation = false
+      } else {
+        baseCenter = m.getCenter()
+        baseBearing = m.getBearing()
+        basePitch = m.getPitch()
+        baseZoom = m.getZoom()
+      }
+      if (disposed || document.hidden || media.matches) return
       window.clearTimeout(timer)
-      timer = window.setTimeout(play, 0)
+      timer = window.setTimeout(play, 350)
     }
     const onVisibility = () => {
       window.clearTimeout(timer)
       if (document.hidden || media.matches) {
-        if (ownsAnimation) m.stop()
+        if (ownsAnimation) {
+          m.stop()
+          ownsAnimation = false
+          baseCenter = m.getCenter()
+          baseBearing = m.getBearing()
+          basePitch = m.getPitch()
+          baseZoom = m.getZoom()
+        }
       } else schedule()
     }
     m.on('moveend', schedule)
@@ -729,9 +771,9 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
   return (
     <>
       <div ref={container} className={classes} role="region" aria-label={label} />
-      {tileError && interactive && activeBasemap !== 'dark' && (
+      {tileError && interactive && (
         <p className="map-tile-status" role="status">
-          Snímky se načítají pomalu. Hranice a výsledky jsou dostupné.
+          Mapové dlaždice se načítají pomalu. Hranice, výsledky a výběr parcel zůstávají dostupné.
         </p>
       )}
     </>

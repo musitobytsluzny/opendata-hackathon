@@ -120,7 +120,7 @@ BEGIN
             'in_q20', COALESCE(v_flood.in_q20, FALSE),
             'in_active_zone', COALESCE(v_flood.in_active_zone, FALSE),
             'rivers', v_flood.flood_rivers,
-            'severity', COALESCE(v_flood.max_severity, 'BEZ RIZIKA'),
+            'severity', CASE WHEN v_flood.in_active_zone THEN 'AKTIVNÍ ZÁPLAVOVÁ ZÓNA' ELSE COALESCE(v_flood.max_severity, 'BEZ NÁLEZU V DOSTUPNÝCH DATECH') END,
             'legal_restriction', COALESCE(v_flood.flood_restrictions, 'Bez evidovaných záplavových omezení')
         ),
         'nature_protection', jsonb_build_object(
@@ -204,6 +204,7 @@ BEGIN
             'druh_pozemku', v_parcel.druh_pozemku_nazev,
             'patri_do_zpf', COALESCE(v_parcel.patri_do_zpf, FALSE),
             'je_stavebni_plocha', COALESCE(v_parcel.je_stavebni_plocha, FALSE),
+            'planning_assessment', 'not_available',
             'legal_notes', v_parcel.stavebni_poznamka
         ),
         'geojson', ST_AsGeoJSON(v_parcel.geom)::jsonb

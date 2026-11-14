@@ -1,6 +1,7 @@
 """Small spatial operations. IDs resolve to stored geometry; model-written SQL is forbidden."""
 
 import json
+import re
 
 import httpx
 from fastapi import HTTPException
@@ -74,32 +75,80 @@ def feature(row, point=False):
     }
 
 
-def search_places(query, kind="obec", limit=10):
+def expand_institution_abbreviations(query):
+    expanded = query
+    for abbreviation, full in {
+        "SOUE": "střední odborné učiliště elektrotechnické",
+        "SOU": "střední odborné učiliště",
+        "VOŠ": "vyšší odborná škola",
+        "SPŠE": "střední průmyslová škola elektrotechnická",
+        "SPŠ": "střední průmyslová škola",
+        "ZŠ": "základní škola",
+        "MŠ": "mateřská škola",
+    }.items():
+        expanded = re.sub(r"\b" + abbreviation + r"\b", full, expanded, flags=re.IGNORECASE)
+    return re.sub(r"\belektrotechnick[^\W_]*", "elektrotechnick", expanded, flags=re.IGNORECASE)
+
+
+def search_places(query, kind="obec", limit=10, municipality=None, category=None):
     if kind not in PLACE_TABLES:
         raise HTTPException(422, "Neznámý typ místa.")
+    if category is not None and (kind != "poi" or category not in CATEGORIES):
+        raise HTTPException(422, "Neznámá kategorie POI.")
     table, primary, name = PLACE_TABLES[kind]
     source_tables = [table]
     if kind == "poi":
         table, primary = "all_facility_poi", "place_id"
         source_tables = ["osm_poi", "facility_poi"]
+    # Match meaningful words independently; school acronyms need not be substrings
+    # of the full official institution name.
+    expanded = expand_institution_abbreviations(query)
+    tokens = [
+        token
+        for token in re.findall(r"[^\W_]+", expanded, re.UNICODE)
+        if token.casefold() not in {"a", "v", "ve", "na"}
+    ]
+    # Preserve literal wildcard searches rather than treating %/_ as query syntax.
+    if not tokens or any(character in query for character in "%_"):
+        tokens = [query]
+    field = "search_text" if kind == "poi" else f"COALESCE({name}, '')"
+    parameters = {"exact": query, "limit": limit}
+    predicates = []
+    for index, token in enumerate(tokens[:16]):
+        key = f"term{index}"
+        parameters[key] = "%" + token.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
+        predicates.append(f"unaccent({field}) ILIKE unaccent(:{key}) ESCAPE '!'")
+    if kind == "poi" and municipality:
+        parameters["municipality"] = municipality
+        predicates.append(
+            "EXISTS (SELECT 1 FROM ruian_obce m WHERE unaccent(m.nazev) ILIKE unaccent(:municipality) AND ST_Covers(m.geom,all_facility_poi.geom))"
+        )
+    if category is not None:
+        parameters["category"] = category
+        predicates.append("category = :category")
+    where = " AND ".join(predicates)
+    # Several education programmes can refer to the same named campus. Keep a
+    # verified representative point, but preserve genuinely separate campuses.
+    dedup = (
+        "ST_ClusterDBSCAN(ST_Transform(geom,5514), eps := 100, minpoints := 1) OVER (PARTITION BY lower(unaccent(name)))"
+        if kind == "poi"
+        else "0"
+    )
     with read_connection() as connection:
         rows = (
             connection.execute(
                 text(f"""
-            SELECT CAST({primary} AS text) AS key, {name} AS name,
-                   ST_AsGeoJSON(ST_PointOnSurface(geom)) AS point
-            FROM {table}
-            WHERE unaccent(COALESCE({name}, '')) ILIKE unaccent(:query) ESCAPE '!'
-            ORDER BY (lower({name})=lower(:exact)) DESC, {name}, {primary}
-            LIMIT :limit
+            WITH matches AS (
+                SELECT CAST({primary} AS text) AS key, {name} AS name,
+                       ST_AsGeoJSON(ST_PointOnSurface(geom)) AS point,
+                       {dedup} AS campus
+                FROM {table} WHERE {where}
+            ), campuses AS (
+                SELECT DISTINCT ON (name,campus) key,name,point FROM matches ORDER BY name,campus,key
+            )
+            SELECT * FROM campuses ORDER BY (lower(name)=lower(:exact)) DESC,name,key LIMIT :limit
         """),
-                {
-                    "query": "%"
-                    + query.replace("!", "!!").replace("%", "!%").replace("_", "!_")
-                    + "%",
-                    "exact": query,
-                    "limit": limit,
-                },
+                parameters,
             )
             .mappings()
             .all()
@@ -328,6 +377,8 @@ def find_route(from_id, to_id):
         "Trasa autem",
         [
             {
+                "from_id": from_id,
+                "to_id": to_id,
                 "from": start["name"],
                 "to": end["name"],
                 "distance_km": round(route["distance"] / 1000, 2),
@@ -344,6 +395,7 @@ def find_route(from_id, to_id):
         [start["table"], end["table"]],
         "OSRM / OpenStreetMap, automobilový profil. Modelový čas bez živé dopravy; nejde o pěší trasu. Koncové body mohou být přichyceny k silnici do 1 km.",
     )
+    answer["result"]["view"] = "map"
     answer["result"]["sources"].append(
         {"name": "OSRM / OpenStreetMap", "url": "https://project-osrm.org/"}
     )
@@ -370,11 +422,16 @@ def load_map_layer(layer, around_id, radius_m=2000, limit=100):
                 text(f"""
             WITH region AS (SELECT ST_Buffer(ST_SetSRID(ST_GeomFromGeoJSON(:point),4326)::geography,:radius)::geometry AS g)
             SELECT t.id::text AS id,{label} AS name,
-                   ST_AsGeoJSON(ST_SimplifyPreserveTopology(t.geom,0.00002)) AS geometry
+                   ST_AsGeoJSON(ST_Transform(ST_SimplifyPreserveTopology(ST_Transform(ST_Intersection(t.geom,r.g),5514),:simplify),4326),6) AS geometry
             FROM {table} t CROSS JOIN region r WHERE ST_Intersects(t.geom,r.g)
             ORDER BY t.id LIMIT :limit
         """),
-                {"point": origin["point"], "radius": radius_m, "limit": limit + 1},
+                {
+                    "point": origin["point"],
+                    "radius": radius_m,
+                    "limit": limit + 1,
+                    "simplify": max(1, radius_m / 500),
+                },
             )
             .mappings()
             .all()
@@ -395,7 +452,7 @@ def load_map_layer(layer, around_id, radius_m=2000, limit=100):
         [column("name", "Prvek")],
         features,
         [table],
-        f"Průnik s okolím {radius_m} m od bodu místa. "
+        f"Průnik s okolím {radius_m} m od bodu místa. Náhledové geometrie jsou oříznuté na toto okolí a zjednodušené s tolerancí {max(1, radius_m / 500):g} m; nejde o přesný katastrální podklad. "
         + (
             f"Výsledek je omezený na {limit} prvků; zmenšete oblast pro úplný detail."
             if truncated

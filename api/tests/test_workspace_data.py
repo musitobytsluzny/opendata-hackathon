@@ -34,13 +34,147 @@ class WorkspaceTests(unittest.TestCase):
                 "CREATE TABLE osm_poi(id text,name text,category text,geom geometry(Point,4326))",
                 "CREATE TABLE facility_poi(id text,name text,category text,amenity text,publisher text,source_url text,geom geometry(Point,4326))",
                 "CREATE TABLE municipality_status(kod_obce int,status_kod int,status_name text)",
-                "CREATE VIEW all_facility_poi AS SELECT 'poi:'||id AS place_id,name,category,'pharmacy'::text AS amenity,'OpenStreetMap'::text AS publisher,'https://www.openstreetmap.org/'::text AS source_url,geom FROM osm_poi UNION ALL SELECT 'facility:'||id,name,category,amenity,publisher,source_url,geom FROM facility_poi",
+                "CREATE VIEW all_facility_poi AS SELECT 'poi:'||id AS place_id,name,category,'pharmacy'::text AS amenity,'OpenStreetMap'::text AS publisher,'https://www.openstreetmap.org/'::text AS source_url,geom,name AS search_text FROM osm_poi UNION ALL SELECT 'facility:'||id,name,category,amenity,publisher,source_url,geom,name FROM facility_poi",
                 "INSERT INTO okresy VALUES('test','Klatovy')",
                 "INSERT INTO ruian_obce VALUES(1,'test','Žlutá',ST_SetSRID(ST_Point(13,49),4326)),(2,'test','Sever',ST_SetSRID(ST_Point(13,50),4326))",
                 "INSERT INTO csu_demografie_obce VALUES(1,100,20,10),(2,300,90,30)",
                 "INSERT INTO osm_poi VALUES('near','Lékárna','healthcare',ST_SetSRID(ST_Point(13.001,49),4326)),('far','Daleko','healthcare',ST_SetSRID(ST_Point(13.1,49),4326))",
             ]:
                 connection.execute(text(statement))
+
+    def test_foot_context_checks_middle_of_route_and_preserves_unknowns(self):
+        from app.services import route_context
+
+        with self.db.begin() as connection:
+            for statement in [
+                "INSERT INTO ruian_obce VALUES(3,'test','Škola',ST_SetSRID(ST_Point(13.01,49),4326))",
+                "CREATE TABLE vuv_zaplavova_uzemi(id text,q_stupen text,aktivni_zona bool,geom geometry(Geometry,4326))",
+                "INSERT INTO vuv_zaplavova_uzemi VALUES('middle','Q100',true,ST_MakeEnvelope(13.004,48.9999,13.006,49.0001,4326))",
+                "INSERT INTO etl_dataset_status(table_name,data_kind,row_count) VALUES('vuv_zaplavova_uzemi','external',1),('osm_route_features','external',1)",
+                "CREATE TABLE osm_route_features(id text,kind text,highway text,tags_json jsonb,geom geometry(Geometry,4326))",
+                "INSERT INTO osm_route_features VALUES('road','road_segment','residential','{}',ST_GeomFromText('LINESTRING(13.004 49,13.006 49)',4326))",
+            ]:
+                connection.execute(text(statement))
+        route = {
+            "distance": 800,
+            "duration": 600,
+            "geometry": {"type": "LineString", "coordinates": [[13, 49], [13.01, 49]]},
+        }
+        with patch.object(route_context, "foot_route", return_value=route):
+            answer = route_context.analyse_route_context("obec:1", "obec:3")
+        rows = {r["check"]: r for r in answer["result"]["rows"]}
+        self.assertEqual(rows["Aktivní záplavové zóny"]["mapped_count"], 1)
+        self.assertIsNone(rows["Mapované vodní toky"]["mapped_count"])
+        self.assertEqual(rows["Úseky bez údaje o chodníku"]["mapped_count"], 1)
+        self.assertEqual(rows["Úseky se značkou sidewalk=no/none"]["mapped_count"], 0)
+        self.assertEqual(answer["route"]["mode"], "foot")
+        self.assertEqual(answer["result"]["view"], "map")
+        self.assertIn("není důkaz chybějícího chodníku", answer["result"]["note"])
+        self.assertTrue(
+            any(f["id"] == "route-context:flood:middle" for f in answer["result"]["features"])
+        )
+
+    def test_foot_provider_uses_foot_profile_and_never_driving_fallback(self):
+        from app.services import route_context
+
+        real_client = httpx.Client
+        requests = []
+
+        def failed(request):
+            requests.append(str(request.url))
+            return httpx.Response(503)
+
+        with patch.object(
+            route_context.httpx,
+            "Client",
+            side_effect=lambda **kw: real_client(**kw, transport=httpx.MockTransport(failed)),
+        ):
+            with self.assertRaises(HTTPException) as error:
+                route_context.foot_route("13,49;13.01,49", -1)
+        self.assertEqual(error.exception.status_code, 503)
+        self.assertEqual(len(requests), 1)
+        self.assertIn("/routed-foot/route/v1/foot/", requests[0])
+
+    def test_amenity_municipality_is_spatial_not_a_word_in_institution_name(self):
+        with self.db.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ruian_obce SET nazev='Žihle',geom=ST_MakeEnvelope(13,48.99,13.01,49.01,4326) WHERE kod_obce=1"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO facility_poi VALUES('inside','Masarykova základní škola v Žihli','education','primary_school','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13.001,49),4326)),('outside','Základní škola Žihle','education','primary_school','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13.1,49),4326))"
+                )
+            )
+        answer = geo_data.search_amenities("základní škola", obec="Žihle")
+        self.assertEqual([row["id"] for row in answer["result"]["rows"]], ["facility:inside"])
+
+    def test_amenity_category_filters_results_and_unknown_categories_stay_empty(self):
+        with self.db.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO facility_poi VALUES('school','Základní škola','education','primary_school','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13.001,49),4326)),('clinic','Základní škola','healthcare','doctors','OpenStreetMap','https://osm.org/',ST_SetSRID(ST_Point(13.002,49),4326))"
+                )
+            )
+        schools = geo_data.search_amenities("základní škola", kategorie="školství")
+        self.assertEqual([row["id"] for row in schools["result"]["rows"]], ["facility:school"])
+        sports = geo_data.search_amenities("sportoviště", kategorie="sportoviště")
+        self.assertEqual(sports["result"]["rows"], [])
+        self.assertIn("není v načtených datech podporována", sports["result"]["note"])
+
+    def test_balanced_parcels_measures_both_distances_and_enforces_scope(self):
+        from app.services.balanced_parcels import balanced_parcels
+
+        with self.db.begin() as connection:
+            for statement in [
+                "UPDATE ruian_obce SET geom=ST_SetSRID(ST_Point(13.02,49),4326) WHERE kod_obce=2",
+                "CREATE TABLE ruian_parcely(id text,cislo_parcely text,kod_ku int,vymera_m2 float,druh_pozemku text,geom geometry(Polygon,4326))",
+                "INSERT INTO ruian_parcely VALUES('balanced','1',1,100,'zahrada',ST_MakeEnvelope(13.0099,48.9999,13.0101,49.0001,4326)),('unequal','2',1,100,'zahrada',ST_MakeEnvelope(13.001,48.9999,13.0012,49.0001,4326)),('outside','3',1,100,'zahrada',ST_MakeEnvelope(13.0099,49.1,13.0101,49.1002,4326))",
+            ]:
+                connection.execute(text(statement))
+        answer = balanced_parcels("obec:1", "obec:2", 2000, 25, 5)
+        rows = answer["result"]["rows"]
+        self.assertEqual([r["id"] for r in rows], ["parcela:balanced", "parcela:unequal"])
+        self.assertTrue(rows[0]["within_tolerance"])
+        self.assertFalse(rows[1]["within_tolerance"])
+        self.assertGreater(rows[0]["distance_a_m"], 700)
+        self.assertLess(rows[0]["difference_m"], 0.01)
+        self.assertEqual(answer["search"]["searched_parcels"], 2)
+        self.assertFalse(answer["search"]["global_optimum"])
+        self.assertEqual(answer["result"]["features"][-1]["geometry"]["type"], "Polygon")
+        whole = balanced_parcels("obec:1", "obec:2", search_all=True)
+        self.assertEqual(whole["search"]["searched_parcels"], 3)
+        self.assertEqual(whole["search"]["scope"], "loaded_parcels")
+        self.assertIsNone(whole["search"]["radius_m"])
+        self.assertIn("parcela:outside", [row["id"] for row in whole["result"]["rows"]])
+        exact = balanced_parcels("obec:1", "obec:2", 2000, 0, 5)
+        self.assertTrue(
+            all(not r["within_tolerance"] for r in exact["result"]["rows"] if r["difference_m"] > 0)
+        )
+        with self.assertRaises(HTTPException):
+            balanced_parcels("obec:1", "obec:1")
+
+    def test_map_layers_clip_long_features_to_requested_area(self):
+        import json
+
+        with self.db.begin() as connection:
+            connection.execute(
+                text(
+                    "CREATE TABLE zabaged_vodni_toky(id text,jmeno text,geom geometry(Geometry,4326))"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO zabaged_vodni_toky VALUES('long','Tok',ST_GeomFromText('LINESTRING(12 49,14 49)',4326))"
+                )
+            )
+        answer = workspace.load_map_layer("water", "obec:1", 500, 10)["result"]
+        self.assertLess(len(json.dumps(answer)), 5000)
+        self.assertIn("oříznuté", answer["note"])
+        for lon, _ in answer["features"][0]["geometry"]["coordinates"]:
+            self.assertGreater(lon, 12.99)
+            self.assertLess(lon, 13.01)
 
     def cleanup(self):
         self.engine_patch.stop()
@@ -235,7 +369,7 @@ class WorkspaceTests(unittest.TestCase):
         def handler(request):
             self.assertIn("/table/v1/driving/", str(request.url))
             return httpx.Response(
-                200, json={"code": "Ok", "distances": [[40000, 10000]], "durations": [[2400, 600]]}
+                200, json={"code": "Ok", "distances": [[40000, 10000]], "durations": [[100, 600]]}
             )
 
         with self.db.begin() as connection:
@@ -252,6 +386,10 @@ class WorkspaceTests(unittest.TestCase):
             ),
         ):
             answer = life_data.rank_driving_candidates("obec:1", ["obec:2", "obec:3"])["result"]
+            timed = life_data.rank_driving_candidates("obec:1", ["obec:2", "obec:3"], "duration")
+        self.assertEqual(timed["result"]["rows"][0]["id"], "obec:2")
+        self.assertEqual(timed["ordering"], "duration")
+        self.assertIn("času jízdy", timed["result"]["note"])
         self.assertEqual(answer["rows"][0]["id"], "obec:3")
         self.assertEqual(answer["rows"][0]["distance_km"], 10)
         self.assertIn("Pouze zadaní kandidáti", answer["note"])
@@ -269,3 +407,61 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual([r["name"] for r in rows], ["Náměstí", "Škola"])
         alternatives = life_data.facility_alternatives("facility:a", 1000, 3)["result"]["rows"]
         self.assertEqual([r["name"] for r in alternatives], ["Škola"])
+
+    def test_school_acronym_search_returns_geometry_and_deduplicates_same_campus(self):
+        from app.services.geo_data import search_amenities
+
+        name = (
+            "Vyšší odborná škola a Střední průmyslová škola elektrotechnická, Plzeň, Koterovská 85"
+        )
+        with self.db.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO facility_poi VALUES('college',:name,'education','college','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13,49),4326)),('secondary',:name,'education','secondary_school','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13.00005,49),4326))"
+                ),
+                {"name": name},
+            )
+        found = workspace.search_places("VOŠ a SPŠE Plzeň", "poi")["result"]
+        self.assertEqual(len(found["rows"]), 1)
+        self.assertTrue(found["rows"][0]["id"].startswith("facility:"))
+        self.assertEqual(found["features"][0]["geometry"]["type"], "Point")
+        self.assertEqual(search_amenities("VOŠ a SPŠE Plzeň")["result"]["view"], "map")
+        with self.db.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO facility_poi VALUES('remote',:name,'education','secondary_school','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13.03,49),4326))"
+                ),
+                {"name": name},
+            )
+        self.assertEqual(
+            len(workspace.search_places("VOŠ a SPŠE Plzeň", "poi")["result"]["rows"]), 2
+        )
+
+    def test_nearby_schools_exclude_origin_across_sources_but_keep_other_nearby_institutions(self):
+        from app.services.life_data import nearby_facilities
+
+        name = (
+            "Vyšší odborná škola a Střední průmyslová škola elektrotechnická, Plzeň, Koterovská 85"
+        )
+        with self.db.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO facility_poi VALUES('origin',:name,'education','secondary_school','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13,49),4326)),('university','Metropolitní univerzita Praha, Univerzitní středisko','education','university','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13.001,49),4326)),('easy','Základní škola Easy Start','education','primary_school','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13.003,49),4326)),('twenty','20. základní škola Plzeň, Brojova 13','education','primary_school','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13.006,49),4326))"
+                ),
+                {"name": name},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO osm_poi VALUES('own','VOŠ a SPŠE Plzeň','education',ST_SetSRID(ST_Point(13.0015,49),4326)),('twenty','20. Základní škola','education',ST_SetSRID(ST_Point(13.0061,49),4326))"
+                )
+            )
+            # The fixture view labels legacy rows as pharmacies; reflect these two actual school types.
+            connection.execute(
+                text(
+                    "CREATE OR REPLACE VIEW all_facility_poi AS SELECT 'poi:'||id AS place_id,name,category,CASE WHEN category='education' THEN 'school' ELSE 'pharmacy' END::text AS amenity,'OpenStreetMap'::text AS publisher,'https://www.openstreetmap.org/'::text AS source_url,geom,name AS search_text FROM osm_poi UNION ALL SELECT 'facility:'||id,name,category,amenity,publisher,source_url,geom,name FROM facility_poi"
+                )
+            )
+        rows = nearby_facilities("facility:origin", "school", 5000, 3)["result"]["rows"]
+        self.assertEqual(
+            [row["id"] for row in rows], ["facility:university", "facility:easy", "facility:twenty"]
+        )

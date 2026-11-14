@@ -247,7 +247,7 @@ test('reading earlier messages does not jump when a reply arrives', async ({ pag
     .toBeLessThan(65)
 })
 
-test('merged settings share themes, palettes and basemaps and preserve clear-history confirmation', async ({
+test('map and appearance settings persist and preserve clear-history confirmation', async ({
   page,
 }) => {
   await page.route('**/api/chat/ask', (route) => route.fulfill({ json: statistics }))
@@ -262,11 +262,16 @@ test('merged settings share themes, palettes and basemaps and preserve clear-his
   expect(
     await page.locator('.panel').evaluate((element) => getComputedStyle(element).backgroundColor),
   ).toBe('rgb(23, 28, 24)')
+  await page.keyboard.press('Escape')
+  await page.locator('.map-layers summary').click()
   await page.getByRole('radio', { name: 'Kontrastní', exact: true }).check()
   expect(
     await page.locator('html').evaluate((element) => element.style.getPropertyValue('--data-low')),
   ).toBe('#fde737')
-  await page.getByRole('combobox', { name: 'Mapový podklad' }).selectOption('dark')
+  await page
+    .getByRole('radiogroup', { name: 'Podklad' })
+    .getByRole('radio', { name: 'Tmavý' })
+    .check()
   await expect
     .poll(() =>
       page.evaluate(
@@ -277,9 +282,15 @@ test('merged settings share themes, palettes and basemaps and preserve clear-his
   await page.keyboard.press('Escape')
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-  await page.getByRole('button', { name: 'Nastavení', exact: true }).click()
+  await page.locator('.map-layers summary').click()
   await expect(page.getByRole('radio', { name: 'Kontrastní', exact: true })).toBeChecked()
-  await expect(page.getByRole('combobox', { name: 'Mapový podklad' })).toHaveValue('dark')
+  await expect(
+    page.getByRole('radiogroup', { name: 'Podklad' }).getByRole('radio', { name: 'Tmavý' }),
+  ).toBeChecked()
+  await page.keyboard.press('Escape')
+  const launcher = page.getByRole('button', { name: 'Otevřít konverzaci' })
+  if (await launcher.isVisible()) await launcher.click()
+  await page.getByRole('button', { name: 'Nastavení', exact: true }).click()
   await page.getByRole('button', { name: 'Smazat historii konverzací', exact: true }).click()
   await page.getByRole('button', { name: 'Zrušit', exact: true }).click()
   await expect(page.locator('.msg--user')).toContainText('Test motivu')
@@ -306,9 +317,19 @@ test('legacy web-design preferences migrate into the unified settings store', as
   )
   await authenticate(page)
   await page.getByRole('button', { name: 'Nastavení', exact: true }).click()
-  await expect(page.getByRole('radio', { name: 'Tmavý', exact: true })).toBeChecked()
+  await expect(
+    page.getByRole('dialog', { name: 'Nastavení' }).getByRole('radio', { name: 'Tmavý' }),
+  ).toBeChecked()
+  await page.keyboard.press('Escape')
+  await page.locator('.map-layers summary').click()
   await expect(page.getByRole('radio', { name: 'Kontrastní', exact: true })).toBeChecked()
-  await expect(page.getByRole('combobox', { name: 'Mapový podklad' })).toHaveValue('dark')
+  await expect(
+    page.getByRole('radiogroup', { name: 'Podklad' }).getByRole('radio', { name: 'Tmavý' }),
+  ).toBeChecked()
   await expect(page.getByLabel('Názvy měst', { exact: true })).not.toBeChecked()
+  await page.keyboard.press('Escape')
+  const launcher = page.getByRole('button', { name: 'Otevřít konverzaci' })
+  if (await launcher.isVisible()) await launcher.click()
+  await page.getByRole('button', { name: 'Nastavení', exact: true }).click()
   await expect(page.getByRole('combobox', { name: 'Velikost textu' })).toHaveValue('large')
 })

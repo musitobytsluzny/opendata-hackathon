@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../auth/AuthContext'
 import { apiFetch } from '../api/client'
 import { Icon } from '../components/Icon'
+import { Choice } from '../components/Choice'
 import { PopoverPortal } from '../components/PopoverPortal'
 import { AnswerView } from '../chat/AnswerView'
 import { HistoryPanel } from '../chat/HistoryPanel'
@@ -23,6 +24,7 @@ import { usePreferences } from '../hooks/usePreferences'
 import { useWorkspaceLayout } from '../hooks/useWorkspaceLayout'
 import { RegionMap, type RegionMapHandle } from '../map/LazyRegionMap'
 import { MapLegend } from '../map/MapLegend'
+import { PALETTES } from '../map/palette'
 import type { OkresId } from '../map/geo'
 import './MapPage.css'
 
@@ -48,6 +50,7 @@ export function MapPage() {
   const scrollPositions = useRef(new Map<string, number>())
   const previouslyCollapsed = useRef(collapsed)
   const lastConversation = useRef(currentId)
+  const pendingAnswerScroll = useRef<{ session: string; id: string } | null>(null)
   const popoverTrigger = useRef<HTMLElement | null>(null)
   const [loadingIn, setLoadingIn] = useState<string | null>(null)
   const [popover, setPopover] = useState<Popover>(null)
@@ -327,12 +330,27 @@ export function MapPage() {
       behavior: smooth ? behavior : 'instant',
     })
   }
+  function scrollToMessage(id: string) {
+    const list = listRef.current
+    const message = document.getElementById(`msg-${id}`)
+    if (!list || !message || !list.contains(message)) return false
+    const top =
+      list.scrollTop +
+      message.getBoundingClientRect().top -
+      list.getBoundingClientRect().top -
+      Number.parseFloat(getComputedStyle(list).paddingTop)
+    list.scrollTo({ top: Math.max(0, top), behavior: 'instant' })
+    stickToBottom.current = false
+    setUnread(false)
+    return true
+  }
   const syncScroll = useEffectEvent(() => {
     const reopening = previouslyCollapsed.current && !collapsed
     previouslyCollapsed.current = collapsed
     const switched = lastConversation.current !== currentId
     if (switched) {
       lastConversation.current = currentId
+      pendingAnswerScroll.current = null
       stickToBottom.current = true
       setUnread(false)
       setAwayFromBottom(false)
@@ -340,12 +358,18 @@ export function MapPage() {
     if (collapsed) return
     if (reopening && !stickToBottom.current && listRef.current)
       listRef.current.scrollTop = scrollPositions.current.get(currentId) ?? 0
+    const pending = pendingAnswerScroll.current
+    if (pending?.session === currentId) {
+      pendingAnswerScroll.current = null
+      if (preferences.autoScroll && stickToBottom.current && scrollToMessage(pending.id)) return
+    }
     if (preferences.autoScroll && stickToBottom.current) scrollToLatest(false)
     else if (messages.length) setUnread(true)
   })
   useLayoutEffect(() => {
-    const frame = requestAnimationFrame(() => syncScroll())
-    return () => cancelAnimationFrame(frame)
+    // Position new content before paint; a deferred frame lets browser scroll anchoring
+    // report an artificial "away from bottom" event before the answer is positioned.
+    syncScroll()
   }, [messages, loading, currentId, collapsed, preferences.autoScroll])
 
   function cancelEdit() {
@@ -395,6 +419,7 @@ export function MapPage() {
         activeId: answer.rows?.length ? id : session.activeId,
         updatedAt: Date.now(),
       }))
+      if (currentRef.current === sid) pendingAnswerScroll.current = { session: sid, id }
       if (preferences.autoFocus && currentRef.current === sid) {
         const chart = answer.artifacts?.some(
           (item) => item.view === 'bar' || item.view === 'line' || item.view === 'pie',
@@ -410,7 +435,6 @@ export function MapPage() {
             requestAnimationFrame(() => {
               if (currentRef.current !== sid) return
               const element = document.querySelector<HTMLElement>(`#msg-${id} .result-view`)
-              element?.scrollIntoView({ behavior, block: 'nearest' })
               if (chart && element) {
                 element.tabIndex = -1
                 element.focus({ preventScroll: true })
@@ -595,6 +619,8 @@ export function MapPage() {
         maskOpacity={preferences.dimOutside ? preferences.dimOpacity : 0}
         showTowns={preferences.showTowns}
         basemap={preferences.basemap}
+        showCadastre={preferences.showCadastre}
+        cadastreOpacity={preferences.cadastreOpacity}
         palette={preferences.palette}
         reducedMotion={motion || dragging}
         onSelect={(id) => {
@@ -607,76 +633,236 @@ export function MapPage() {
       />
       <div className="app__vignette" aria-hidden="true" />
       <details className="map-layers" open={mapMode !== 'navigate' || undefined}>
-        <summary>
-          Mapa a vrstvy{workspace.layers.length ? ` · ${workspace.layers.length}` : ''}
+        <summary className="map-layers__summary">
+          <Icon name="layers" size={17} />
+          <span>Mapa a vrstvy</span>
+          {workspace.layers.length > 0 && (
+            <span className="map-layers__count">{workspace.layers.length}</span>
+          )}
         </summary>
-        {workspace.layers.map((layer) => (
-          <label key={layer.artifact.result_id}>
-            <input
-              type="checkbox"
-              checked={layer.visible}
-              onChange={(event) => workspace.toggle(layer.artifact.result_id, event.target.checked)}
+        <div className="map-layers__panel">
+          <section className="map-layers__section">
+            <Choice
+              label="Podklad"
+              value={preferences.basemap}
+              options={[
+                { value: 'satellite', label: 'Satelit' },
+                { value: 'ortho', label: 'Ortofoto' },
+                { value: 'dark', label: 'Tmavý' },
+              ]}
+              onChange={(value) => updatePreference('basemap', value)}
             />
-            <span style={{ color: layer.color }}>{layer.artifact.title}</span>
-          </label>
-        ))}
-        <div className="map-layers__tools">
-          <button
-            type="button"
-            aria-pressed={mapMode === 'navigate'}
-            onClick={() => {
-              setMapMode('navigate')
-              parcelRequest.current?.abort()
-              setParcelStatus('')
-            }}
-          >
-            Pohyb mapy
-          </button>
-          <button
-            type="button"
-            aria-pressed={mapMode === 'parcel'}
-            onClick={() => {
-              setMapMode('parcel')
-              setParcelStatus('Klikněte na parcelu v mapě.')
-              setParcelSelection({ session: currentId, items: [] })
-            }}
-          >
-            Vybrat parcelu
-          </button>
-          <button
-            type="button"
-            aria-pressed={mapMode === 'compare'}
-            onClick={() => {
-              setMapMode('compare')
-              setParcelStatus('Klikněte na dvě parcely.')
-              setParcelSelection({ session: currentId, items: [] })
-            }}
-          >
-            Porovnat parcely
-          </button>
+            <p className="map-layers__note">
+              {preferences.basemap === 'satellite'
+                ? 'Sentinel‑2 · přehledový zdroj do zoomu 10; při přiblížení se dlaždice zvětšují.'
+                : preferences.basemap === 'ortho'
+                  ? 'Ortofoto ČÚZK · detail zdroje do zoomu 19; mimo pokrytí ČR zůstává satelitní přehled.'
+                  : 'Jednoduchý tmavý podklad bez satelitních snímků.'}
+            </p>
+          </section>
+
+          <section className="map-layers__section">
+            <h2>Tematické vrstvy</h2>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={preferences.showCadastre}
+                onChange={(event) => updatePreference('showCadastre', event.target.checked)}
+              />
+              <span className="switch__track" aria-hidden="true" />
+              Katastrální parcely · ČÚZK
+            </label>
+            <p className="map-layers__note">
+              RÚIAN, vrstva Parcela. Hranice se zobrazí až při mapovém měřítku přibližně 1 : 15 000.
+              © ČÚZK
+            </p>
+            <label className="settings__field">
+              <span>
+                Průhlednost katastru{' '}
+                <output>{Math.round(preferences.cadastreOpacity * 100)} %</output>
+              </span>
+              <input
+                type="range"
+                min="0.1"
+                max="1"
+                step="0.01"
+                aria-label="Průhlednost katastru"
+                value={preferences.cadastreOpacity}
+                disabled={!preferences.showCadastre}
+                onChange={(event) =>
+                  updatePreference('cadastreOpacity', Number(event.target.value))
+                }
+              />
+            </label>
+          </section>
+
+          <section className="map-layers__section">
+            <h2>Mapové zobrazení</h2>
+            <Choice
+              label="Barevná škála výsledků"
+              value={preferences.palette}
+              options={[
+                {
+                  value: 'blue',
+                  label: 'Modrá',
+                  swatch: (
+                    <i
+                      className="choice__scale"
+                      style={{
+                        background: `linear-gradient(90deg, ${PALETTES.blue.join(', ')})`,
+                      }}
+                    />
+                  ),
+                },
+                {
+                  value: 'cividis',
+                  label: 'Kontrastní',
+                  swatch: (
+                    <i
+                      className="choice__scale"
+                      style={{
+                        background: `linear-gradient(90deg, ${PALETTES.cividis.join(', ')})`,
+                      }}
+                    />
+                  ),
+                },
+              ]}
+              onChange={(value) => updatePreference('palette', value)}
+            />
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={preferences.dimOutside}
+                onChange={(event) => updatePreference('dimOutside', event.target.checked)}
+              />
+              <span className="switch__track" aria-hidden="true" />
+              Ztmavit okolní státy
+            </label>
+            <label className="settings__field">
+              <span>
+                Síla ztmavení <output>{Math.round(preferences.dimOpacity * 100)} %</output>
+              </span>
+              <input
+                type="range"
+                min="0"
+                max="0.9"
+                step="0.01"
+                aria-label="Síla ztmavení"
+                value={preferences.dimOpacity}
+                disabled={!preferences.dimOutside}
+                onChange={(event) => updatePreference('dimOpacity', Number(event.target.value))}
+              />
+            </label>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={preferences.showTowns}
+                onChange={(event) => updatePreference('showTowns', event.target.checked)}
+              />
+              <span className="switch__track" aria-hidden="true" />
+              Názvy měst
+            </label>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={preferences.showLabels}
+                onChange={(event) => updatePreference('showLabels', event.target.checked)}
+              />
+              <span className="switch__track" aria-hidden="true" />
+              Hodnoty na mapě
+            </label>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={preferences.showLegend}
+                onChange={(event) => updatePreference('showLegend', event.target.checked)}
+              />
+              <span className="switch__track" aria-hidden="true" />
+              Legenda a pokrytí dat
+            </label>
+          </section>
+
+          {workspace.layers.length > 0 && (
+            <section className="map-layers__section">
+              <h2>Výsledky v mapě</h2>
+              {workspace.layers.map((layer) => (
+                <label className="map-layers__result" key={layer.artifact.result_id}>
+                  <input
+                    type="checkbox"
+                    checked={layer.visible}
+                    onChange={(event) =>
+                      workspace.toggle(layer.artifact.result_id, event.target.checked)
+                    }
+                  />
+                  <span style={{ color: layer.color }}>{layer.artifact.title}</span>
+                </label>
+              ))}
+            </section>
+          )}
+
+          <section className="map-layers__section">
+            <h2>Práce s parcelou</h2>
+            <div className="map-layers__tools">
+              <button
+                type="button"
+                aria-pressed={mapMode === 'navigate'}
+                onClick={() => {
+                  setMapMode('navigate')
+                  parcelRequest.current?.abort()
+                  setParcelStatus('')
+                }}
+              >
+                Pohyb mapy
+              </button>
+              <button
+                type="button"
+                aria-pressed={mapMode === 'parcel'}
+                onClick={() => {
+                  setMapMode('parcel')
+                  setParcelStatus('Klikněte na parcelu v mapě.')
+                  setParcelSelection({ session: currentId, items: [] })
+                }}
+              >
+                Vybrat parcelu
+              </button>
+              <button
+                type="button"
+                aria-pressed={mapMode === 'compare'}
+                onClick={() => {
+                  setMapMode('compare')
+                  setParcelStatus('Klikněte na dvě parcely.')
+                  setParcelSelection({ session: currentId, items: [] })
+                }}
+              >
+                Porovnat parcely
+              </button>
+            </div>
+            {parcelStatus && (
+              <p className="map-layers__status" role="status">
+                {parcelStatus}
+              </p>
+            )}
+            {selectedParcels.length > 0 && (
+              <div className="map-layers__tools">
+                <button
+                  type="button"
+                  disabled={
+                    Boolean(loadingIn) || (mapMode === 'compare' && selectedParcels.length < 2)
+                  }
+                  onClick={() =>
+                    void send(
+                      selectedParcels.length === 2
+                        ? `Porovnej parcely ${selectedParcels.map((item) => `číslo ${item.number} v katastrálním území s kódem ${item.ku}`).join(' a ')}. Použij skutečné údaje, prověř obě parcely a shrň rozdíly i chybějící data.`
+                        : `Prověř parcelu číslo ${selectedParcels[0].number} v katastrálním území s kódem ${selectedParcels[0].ku}, kterou jsem vybral na mapě.`,
+                    )
+                  }
+                >
+                  {selectedParcels.length === 2 ? 'Porovnat v chatu' : 'Prověřit v chatu'}
+                </button>
+              </div>
+            )}
+          </section>
         </div>
-        {parcelStatus && (
-          <p className="map-layers__status" role="status">
-            {parcelStatus}
-          </p>
-        )}
-        {selectedParcels.length > 0 && (
-          <div className="map-layers__tools">
-            <button
-              type="button"
-              disabled={Boolean(loadingIn) || (mapMode === 'compare' && selectedParcels.length < 2)}
-              onClick={() =>
-                void send(
-                  selectedParcels.length === 2
-                    ? `Porovnej parcely ${selectedParcels.map((item) => `číslo ${item.number} v katastrálním území s kódem ${item.ku}`).join(' a ')}. Použij skutečné údaje, prověř obě parcely a shrň rozdíly i chybějící data.`
-                    : `Prověř parcelu číslo ${selectedParcels[0].number} v katastrálním území s kódem ${selectedParcels[0].ku}, kterou jsem vybral na mapě.`,
-                )
-              }
-            >
-              {selectedParcels.length === 2 ? 'Porovnat v chatu' : 'Prověřit v chatu'}
-            </button>
-          </div>
-        )}
       </details>
 
       {collapsed ? (
@@ -840,6 +1026,17 @@ export function MapPage() {
               if (!away) setUnread(false)
             }}
           >
+            {chat.storageUnavailable && messages.length > 0 && (
+              <div className="history-storage-warning" role="status">
+                <p>
+                  Historii se nepodařilo uložit do tohoto prohlížeče. Před zavřením si konverzaci
+                  stáhněte.
+                </p>
+                <button className="text-btn" type="button" onClick={() => exportConversation()}>
+                  Stáhnout konverzaci
+                </button>
+              </div>
+            )}
             {!messages.length && !loading ? (
               <div className="empty">
                 <h1 className="empty__title">Na co se chcete zeptat?</h1>

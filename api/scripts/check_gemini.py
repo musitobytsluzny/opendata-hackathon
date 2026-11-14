@@ -1,21 +1,15 @@
 """Explicit, small live check. Never print the key or provider exception body."""
 
 from app.database.connection import settings
-from google import genai
+from app.services.gemini_client import create_gemini_client
 from google.genai import errors, types
 
 
 def main():
-    if not settings.gemini_api_key.get_secret_value().strip():
-        raise SystemExit("GEMINI_API_KEY is missing")
+    if not settings.gemini_configured:
+        raise SystemExit("Gemini configuration is incomplete")
     try:
-        with genai.Client(
-            api_key=settings.gemini_api_key.get_secret_value(),
-            vertexai=False,
-            http_options=types.HttpOptions(
-                timeout=60000, retry_options=types.HttpRetryOptions(attempts=1)
-            ),
-        ) as client:
+        with create_gemini_client(retry_attempts=1) as client:
             response = client.models.generate_content(
                 model=settings.gemini_model,
                 contents="Reply with exactly the single word OK.",

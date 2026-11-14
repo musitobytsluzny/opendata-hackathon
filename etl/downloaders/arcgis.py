@@ -47,6 +47,8 @@ def fetch_layer(
         data = download_json(url + "?" + urllib.parse.urlencode(query))
         if "error" in data:
             raise RuntimeError(str(data["error"]))
+        if "objectIds" not in data:
+            raise ValueError(f"ArcGIS source returned no object-ID envelope: {name}")
         ids = sorted(data.get("objectIds") or [])
         cache.write_text(json.dumps(ids))
     features = []

@@ -2,7 +2,6 @@
 
 from contextlib import contextmanager
 
-import httpx
 from sqlalchemy import text
 
 from app.database.connection import engine
@@ -139,13 +138,25 @@ def statistics(metric: Metric):
     }
 
 
+def _enrich_with_zoning(result: dict, lon: float | None, lat: float | None) -> dict:
+    """Attach Plzeňský kraj spatial planning (ÚAP/ÚPD) and radon risk for coordinates."""
+    if lon is None or lat is None:
+        return result
+    zoning_data = cuzk_client.fetch_zoning_at_point(float(lon), float(lat))
+    if isinstance(result, dict):
+        result.update(zoning_data)
+    return result
+
+
 def prevalidate_point(lat: float, lon: float):
     with read_connection() as connection:
         result = connection.scalar(
             text("SELECT fn_prevalidate_point(:lat, :lon)"), {"lat": lat, "lon": lon}
         )
+    if not result:
+        return {"status": "not_found", "message": "Bod nelze ověřit."}
     result.pop("geojson", None)
-    return result
+    return _enrich_with_zoning(result, lon=lon, lat=lat)
 
 
 @contextmanager
@@ -218,6 +229,36 @@ def prevalidate_parcel(
 
     # If not found locally in DB, fetch on-demand from ČÚZK!
     if not result or result.get("status") == "not_found":
+        if "/" not in cislo:
+            with read_connection() as connection:
+                candidates = (
+                    connection.execute(
+                        text("""
+                            SELECT id, cislo_parcely, druh_pozemku, vymera_m2
+                            FROM ruian_parcely
+                            WHERE kod_ku = :kod
+                              AND split_part(cislo_parcely, '/', 1) = :cislo
+                              AND cislo_parcely <> :cislo
+                            ORDER BY cislo_parcely
+                            LIMIT 10
+                        """),
+                        {"kod": kod_ku, "cislo": cislo},
+                    )
+                    .mappings()
+                    .all()
+                )
+            if candidates:
+                numbers = [candidate["cislo_parcely"] for candidate in candidates]
+                return {
+                    "status": "ambiguous" if len(candidates) > 1 else "not_found",
+                    "message": (
+                        f"Samostatná parcela {cislo} nebyla nalezena. "
+                        f"V katastrálním území jsou pod tímto kmenovým číslem: "
+                        f"{', '.join(numbers)}. Upřesněte celé číslo parcely."
+                    ),
+                    "candidates": [dict(candidate) for candidate in candidates],
+                }
+
         cuzk_feat = cuzk_client.fetch_parcel_by_number(kod_ku, cislo)
         if cuzk_feat:
             try:
@@ -231,24 +272,116 @@ def prevalidate_parcel(
             except Exception:
                 pass
 
-    if result:
-        result.pop("geojson", None)
-        parcel = result.get("parcel")
-        if parcel and parcel.get("id") is not None:
-            from app.services.workspace_data import place_geometry
+    if not result or result.get("status") == "not_found":
+        return result or {"status": "not_found", "message": "Parcela nebyla nalezena."}
 
-            presentation = place_geometry("parcela:" + str(parcel["id"]))["result"]
-            presentation["title"] = f"Parcela {parcel['cislo_parcely']} · {parcel['ku_nazev']}"
-            presentation["view"] = "map"
-            presentation["rows"] = [
-                {"name": presentation["title"], "area_m2": parcel.get("vymera_m2")}
-            ]
-            presentation["columns"] = [
-                {"key": "name", "label": "Parcela"},
-                {"key": "area_m2", "label": "Výměra", "numeric": True, "unit": "m²"},
-            ]
-            result["result"] = presentation
-    return result or {"status": "not_found", "message": "Parcela nebyla nalezena."}
+    result.pop("geojson", None)
+
+    with read_connection() as connection:
+        coords = (
+            connection.execute(
+                text(
+                    "SELECT ST_X(ST_Centroid(geom)) AS lon, ST_Y(ST_Centroid(geom)) AS lat "
+                    "FROM ruian_parcely WHERE kod_ku = :kod AND cislo_parcely = :cislo LIMIT 1"
+                ),
+                {"kod": kod_ku, "cislo": cislo},
+            )
+            .mappings()
+            .first()
+        )
+    if coords and coords["lon"] is not None and coords["lat"] is not None:
+        lon, lat = float(coords["lon"]), float(coords["lat"])
+        if isinstance(result.get("parcel"), dict):
+            result["parcel"]["coordinates"] = {"lat": round(lat, 6), "lon": round(lon, 6)}
+        _enrich_with_zoning(result, lon=lon, lat=lat)
+
+    parcel = result.get("parcel")
+    if parcel and parcel.get("id") is not None:
+        from app.services.workspace_data import place_geometry
+
+        presentation = place_geometry("parcela:" + str(parcel["id"]))["result"]
+        presentation["title"] = f"Parcela {parcel['cislo_parcely']} · {parcel['ku_nazev']}"
+        presentation["view"] = "map"
+        sources = result.get("data_sources", {})
+        in_scope = bool(result.get("location_hierarchy", {}).get("municipality_code"))
+        flood_loaded = in_scope and sources.get("vuv_zaplavova_uzemi", {}).get("rows", 0) > 0
+        nature_loaded = in_scope and sources.get("aopk_chranena_uzemi", {}).get("rows", 0) > 0
+        zoning = result.get("zoning_plan", {})
+        planning_status = (
+            "developable"
+            if zoning.get("is_developable_area")
+            else (
+                "built_up"
+                if zoning.get("in_built_up_area")
+                else (
+                    "non_developable"
+                    if zoning.get("is_non_developable_parcel")
+                    else ("available" if zoning.get("available") else "not_available")
+                )
+            )
+        )
+        presentation["rows"] = [
+            {
+                "id": "parcela:" + str(parcel["id"]),
+                "kod_ku": parcel["kod_ku"],
+                "cislo_parcely": parcel["cislo_parcely"],
+                "name": presentation["title"],
+                "area_m2": parcel.get("vymera_m2"),
+                "land_type": parcel.get("druh_pozemku"),
+                "assessment_kind": result.get("assessment_kind"),
+                "planning_assessment": planning_status,
+                "radon_category": result.get("radon_risk", {}).get("category")
+                if result.get("radon_risk")
+                else None,
+                "flood_q20": result.get("flood_risk", {}).get("in_q20") if flood_loaded else None,
+                "flood_q100": result.get("flood_risk", {}).get("in_q100") if flood_loaded else None,
+                "active_flood_zone": result.get("flood_risk", {}).get("in_active_zone")
+                if flood_loaded
+                else None,
+                "protected_area": result.get("nature_protection", {}).get("in_protected_area")
+                if nature_loaded
+                else None,
+            }
+        ]
+        presentation["rows"][0]["planning_status_label"] = {
+            "developable": "Bodový nález zastavitelné plochy",
+            "built_up": "Bodový nález zastavěného území",
+            "non_developable": "Bodový nález nezastavitelné plochy",
+            "available": "Bodový nález funkčního využití",
+            "not_available": "Neověřeno",
+        }.get(planning_status, "Neověřeno")
+        if zoning.get("conflicting_designations"):
+            presentation["rows"][0]["planning_status_label"] = (
+                "Rozporné bodové nálezy; nutno ověřit"
+            )
+        presentation["columns"] = [
+            {"key": "name", "label": "Parcela"},
+            {"key": "area_m2", "label": "Výměra", "numeric": True, "unit": "m²"},
+            {"key": "land_type", "label": "Druh pozemku"},
+            {"key": "flood_q20", "label": "Průnik Q20"},
+            {"key": "flood_q100", "label": "Průnik Q100"},
+            {"key": "active_flood_zone", "label": "Průnik aktivní záplavové zóny"},
+            {"key": "protected_area", "label": "Průnik ochrany přírody"},
+            {"key": "planning_status_label", "label": "ÚAP – orientační bodový nález"},
+            {"key": "radon_category", "label": "Regionální kategorie radonu"},
+        ]
+        presentation["note"] += (
+            " Nezjištěný průnik s načtenou vrstvou nepotvrzuje bezrizikovost. Neověřeno neznamená nulové riziko. "
+            + zoning.get(
+                "note", "Územní plán není ověřen pro celou parcelu; nejde o stavební povolení."
+            )
+        )
+        if zoning.get("source_url"):
+            presentation["sources"].append(
+                {
+                    "name": "Geoportál Plzeňského kraje – ÚAP",
+                    "url": zoning["source_url"],
+                    "assessment_scope": "reference_point_only",
+                }
+            )
+
+        result["result"] = presentation
+    return result
 
 
 def prevalidate_address(
@@ -271,7 +404,18 @@ def prevalidate_address(
             "message": "Adresní místo nebylo v katastru nemovitostí (RÚIAN) nalezeno.",
         }
 
-    match = matches[0]
+    unique = list(
+        {
+            (match.get("adresa"), match.get("lon"), match.get("lat")): match for match in matches
+        }.values()
+    )
+    if len(unique) > 1:
+        return {
+            "status": "ambiguous",
+            "message": "Adresa má více shod. Upřesněte obec, ulici a číslo domu; žádnou variantu nevybíráme automaticky.",
+            "candidates": unique,
+        }
+    match = unique[0]
     lon, lat = match["lon"], match["lat"]
 
     # 1. Try local parcel at coordinates
@@ -323,99 +467,54 @@ def prevalidate_address(
 
 
 def search_amenities(query: str, obec: str | None = None, kategorie: str | None = None) -> dict:
-    results = []
-    # 1. Search local osm_poi
-    with read_connection() as connection:
-        q_like = f"%{query.strip()}%"
-        rows = (
-            connection.execute(
-                text(
-                    "SELECT id, name, category, amenity, ST_X(geom) as lon, ST_Y(geom) as lat "
-                    "FROM osm_poi "
-                    "WHERE unaccent(name) ILIKE unaccent(:q) OR unaccent(amenity) ILIKE unaccent(:q) "
-                    "LIMIT 5"
-                ),
-                {"q": q_like},
-            )
-            .mappings()
-            .all()
-        )
-        for row in rows:
-            results.append(
-                {
-                    "nazev": row["name"],
-                    "kategorie": row["category"],
-                    "typ": row["amenity"],
-                    "lat": row["lat"],
-                    "lon": row["lon"],
-                    "zdroj": "lokální databáze POI",
-                }
-            )
+    from app.services.workspace_data import search_places
 
-    # 2. Search OpenStreetMap Nominatim for complete regional coverage
-    if len(results) < 3:
-        import re
-
-        base = query.strip()
-        queries_to_try = []
-        if obec and obec.lower() not in base.lower():
-            queries_to_try.append(f"{base}, {obec}")
-        else:
-            queries_to_try.append(base)
-
-        cleaned = re.sub(
-            r"\b(budov[aě]|škol[ae]|inofmrace|informace|o|při)\b", "", base, flags=re.IGNORECASE
-        )
-        cleaned = re.sub(r"\s+", " ", cleaned).strip()
-        if cleaned and cleaned != base:
-            queries_to_try.append(
-                f"{cleaned}, {obec}" if obec and obec.lower() not in cleaned.lower() else cleaned
-            )
-
-        if "domov" in base.lower() and "mládež" in base.lower():
-            queries_to_try.append(f"domov mládeže, {obec or 'Plzeň'}")
-        if "voš" in base.lower() or "spše" in base.lower():
-            queries_to_try.append(f"VOŠ a SPŠE, {obec or 'Plzeň'}")
-
-        seen_names = {r["nazev"] for r in results}
-        for q_try in queries_to_try:
-            try:
-                params = {
-                    "q": q_try,
-                    "format": "json",
-                    "limit": 3,
-                    "countrycodes": "cz",
-                }
-                with httpx.Client(
-                    timeout=3.0, headers={"User-Agent": "OpenDataHackathon/1.0"}
-                ) as client:
-                    resp = client.get("https://nominatim.openstreetmap.org/search", params=params)
-                    if resp.status_code == 200:
-                        for it in resp.json():
-                            name = it.get("name") or it.get("display_name", "").split(",")[0]
-                            if name not in seen_names:
-                                seen_names.add(name)
-                                results.append(
-                                    {
-                                        "nazev": name,
-                                        "adresa": it.get("display_name"),
-                                        "kategorie": it.get("class")
-                                        or kategorie
-                                        or "občanská vybavenost",
-                                        "typ": it.get("type"),
-                                        "lat": float(it["lat"]),
-                                        "lon": float(it["lon"]),
-                                        "zdroj": "OpenStreetMap",
-                                    }
-                                )
-            except Exception:
-                pass
-            if len(results) >= 3:
-                break
-
-    return {
-        "vysledky": results[:5],
-        "pocet": len(results[:5]),
-        "dotaz": query,
-        "obec": obec,
+    categories = {
+        "healthcare": "healthcare",
+        "zdravotnictví": "healthcare",
+        "lékař": "healthcare",
+        "lékaři": "healthcare",
+        "ordinace": "healthcare",
+        "education": "education",
+        "škola": "education",
+        "školy": "education",
+        "školství": "education",
+        "zš": "education",
+        "mš": "education",
+        "transport": "transport",
+        "doprava": "transport",
+        "zastávka": "transport",
+        "shopping": "shopping",
+        "obchod": "shopping",
+        "potraviny": "shopping",
     }
+    category = categories.get(kategorie.strip().casefold()) if kategorie else None
+    if kategorie and category is None:
+        from app.services import workspace_data
+
+        payload = workspace_data.result(
+            "Nalezená místa",
+            [],
+            [workspace_data.column("name", "Místo"), workspace_data.column("id", "Identifikátor")],
+            tables=["osm_poi", "facility_poi"],
+            note=(
+                f"Samostatná kategorie „{kategorie}“ není v načtených datech podporována. "
+                "Prázdný výsledek nedokazuje, že taková místa v okolí neexistují."
+            ),
+        )
+    else:
+        payload = search_places(query, "poi", 5, municipality=obec, category=category)
+    payload["result"]["view"] = "map"
+    features = {feature["id"]: feature for feature in payload["result"]["features"]}
+    payload["vysledky"] = [
+        {
+            "id": row["id"],
+            "nazev": row["name"],
+            "lon": features[row["id"]]["geometry"]["coordinates"][0],
+            "lat": features[row["id"]]["geometry"]["coordinates"][1],
+            "zdroj": "načtené prostorové podklady",
+        }
+        for row in payload["result"]["rows"]
+    ]
+    payload.update(pocet=len(payload["vysledky"]), dotaz=query, obec=obec)
+    return payload

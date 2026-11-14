@@ -4,6 +4,8 @@ import { PALETTES, type PaletteId } from '../map/palette'
 export const DEFAULT_PREFERENCES = {
   dimOutside: true,
   dimOpacity: 0.68,
+  showCadastre: false,
+  cadastreOpacity: 0.72,
   showTowns: true,
   showLabels: true,
   autoFocus: true,
@@ -55,6 +57,9 @@ function load(): Preferences {
     result.dimOpacity = Number.isFinite(result.dimOpacity)
       ? Math.max(0, Math.min(0.9, result.dimOpacity))
       : 0.68
+    result.cadastreOpacity = Number.isFinite(result.cadastreOpacity)
+      ? Math.max(0.1, Math.min(1, result.cadastreOpacity))
+      : 0.72
     return result
   } catch {
     return { ...DEFAULT_PREFERENCES }

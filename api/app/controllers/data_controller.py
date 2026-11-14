@@ -28,7 +28,7 @@ def point(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180)
 def parcel(
     cislo: str = Query(max_length=50, pattern=r"^[0-9]+(?:/[0-9]+)?$"),
     kod_ku: int | None = Query(default=None, gt=0),
-    nazev_ku: str | None = Query(default=None, max_length=100),
+    nazev_ku: str | None = Query(default=None, max_length=100, pattern=r"^[^\x00]*$"),
 ):
     if kod_ku is None and not nazev_ku:
         raise HTTPException(400, "Je nutné zadat kod_ku nebo nazev_ku.")
@@ -37,11 +37,11 @@ def parcel(
 
 @router.get("/prevalidate/address")
 def address(
-    adresa: str | None = Query(default=None, max_length=200),
+    adresa: str | None = Query(default=None, max_length=200, pattern=r"^[^\x00]*$"),
     cislo_popisne: int | None = Query(default=None, gt=0),
     cislo_orientacni: int | None = Query(default=None, gt=0),
-    obec: str | None = Query(default=None, max_length=100),
-    ulice: str | None = Query(default=None, max_length=100),
+    obec: str | None = Query(default=None, max_length=100, pattern=r"^[^\x00]*$"),
+    ulice: str | None = Query(default=None, max_length=100, pattern=r"^[^\x00]*$"),
 ):
     if not any([adresa, cislo_popisne, obec, ulice]):
         raise HTTPException(400, "Je nutné zadat adresu nebo alespoň číslo popisné / obec / ulici.")
@@ -56,8 +56,8 @@ def address(
 
 @router.get("/amenities")
 def amenities(
-    query: str = Query(min_length=2, max_length=100),
-    obec: str | None = Query(default=None, max_length=100),
+    query: str = Query(min_length=2, max_length=100, pattern=r"^[^\x00]*$"),
+    obec: str | None = Query(default=None, max_length=100, pattern=r"^[^\x00]*$"),
     kategorie: str | None = Query(default=None, max_length=50),
 ):
     return geo_data.search_amenities(query=query, obec=obec, kategorie=kategorie)
@@ -68,7 +68,7 @@ from app.services import chat_results, workspace_data  # noqa: E402
 
 @router.get("/places/search")
 def search_places(
-    query: str = Query(min_length=2, max_length=100),
+    query: str = Query(min_length=2, max_length=100, pattern=r"^[^\x00]*$"),
     kind: str = Query(default="obec", pattern="^(obec|ku|poi|parcela)$"),
     limit: int = Query(default=10, ge=1, le=30),
 ):
@@ -76,14 +76,14 @@ def search_places(
 
 
 @router.get("/places/geometry")
-def place_geometry(place_id: str = Query(min_length=3, max_length=80)):
+def place_geometry(place_id: str = Query(min_length=3, max_length=80, pattern=r"^[^\x00]*$")):
     return workspace_data.place_geometry(place_id)
 
 
 @router.get("/municipalities/statistics")
 def municipality_statistics(
     metric: Metric,
-    district: str | None = Query(default=None, max_length=100),
+    district: str | None = Query(default=None, max_length=100, pattern=r"^[^\x00]*$"),
     limit: int = Query(default=20, ge=1, le=50),
     descending: bool = True,
 ):
@@ -92,7 +92,7 @@ def municipality_statistics(
 
 @router.get("/places/nearby")
 def nearby_places(
-    origin_id: str = Query(max_length=80),
+    origin_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
     category: str | None = Query(default=None, max_length=30),
     radius_m: int = Query(default=5000, ge=1, le=50000),
     limit: int = Query(default=10, ge=1, le=30),
@@ -101,19 +101,25 @@ def nearby_places(
 
 
 @router.get("/distance")
-def measure_distance(from_id: str = Query(max_length=80), to_id: str = Query(max_length=80)):
+def measure_distance(
+    from_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
+    to_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
+):
     return workspace_data.measure_distance(from_id, to_id)
 
 
 @router.get("/route")
-def find_route(from_id: str = Query(max_length=80), to_id: str = Query(max_length=80)):
+def find_route(
+    from_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
+    to_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
+):
     return workspace_data.find_route(from_id, to_id)
 
 
 @router.get("/layers")
 def map_layer(
     layer: str = Query(pattern="^(flood|protected|roads|water|parcels)$"),
-    around_id: str = Query(max_length=80),
+    around_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
     radius_m: int = Query(default=2000, ge=50, le=10000),
     limit: int = Query(default=100, ge=1, le=200),
 ):
@@ -136,7 +142,7 @@ from app.services import life_data  # noqa: E402
 
 @router.get("/municipalities/nearest")
 def nearest_municipalities(
-    origin_id: str = Query(max_length=80),
+    origin_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
     limit: int = Query(default=3, ge=1, le=20),
     radius_m: int = Query(default=50000, ge=100, le=200000),
     cities_only: bool = False,
@@ -149,7 +155,7 @@ def nearest_municipalities(
 
 @router.get("/facilities/nearby")
 def nearby_facilities(
-    origin_id: str = Query(max_length=80),
+    origin_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
     kind: str = Query(max_length=30),
     radius_m: int = Query(default=10000, ge=50, le=100000),
     limit: int = Query(default=5, ge=1, le=20),
@@ -159,23 +165,51 @@ def nearby_facilities(
 
 @router.get("/accessibility")
 def accessibility_summary(
-    origin_id: str = Query(max_length=80), radius_m: int = Query(default=20000, ge=100, le=100000)
+    origin_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
+    radius_m: int = Query(default=20000, ge=100, le=100000),
 ):
     return life_data.accessibility_summary(origin_id, radius_m)
 
 
 @router.get("/facilities/alternatives")
 def facility_alternatives(
-    place_id: str = Query(max_length=80),
+    place_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
     radius_m: int = Query(default=20000, ge=50, le=100000),
     limit: int = Query(default=5, ge=1, le=20),
+    kind: str | None = Query(default=None, max_length=30),
 ):
-    return life_data.facility_alternatives(place_id, radius_m, limit)
+    return life_data.facility_alternatives(place_id, radius_m, limit, kind)
 
 
 @router.get("/routes/rank")
 def rank_driving_candidates(
-    origin_id: str = Query(max_length=80),
+    origin_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
     candidate_ids: list[str] = Query(min_length=1, max_length=8),
+    order_by: str = Query(default="distance", pattern="^(distance|duration)$"),
 ):
-    return life_data.rank_driving_candidates(origin_id, candidate_ids)
+    return life_data.rank_driving_candidates(origin_id, candidate_ids, order_by)
+
+
+@router.get("/routes/context")
+def route_context(
+    origin_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
+    destination_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
+    corridor_m: int = Query(default=30, ge=10, le=100),
+):
+    from app.services.route_context import analyse_route_context
+
+    return analyse_route_context(origin_id, destination_id, corridor_m)
+
+
+@router.get("/parcels/balanced")
+def balanced_parcels(
+    first_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
+    second_id: str = Query(max_length=80, pattern=r"^[^\x00]*$"),
+    radius_m: int = Query(default=5000, ge=100, le=20000),
+    tolerance_m: float = Query(default=25, ge=0, le=1000),
+    limit: int = Query(default=5, ge=1, le=10),
+    search_all: bool = False,
+):
+    from app.services.balanced_parcels import balanced_parcels as search
+
+    return search(first_id, second_id, radius_m, tolerance_m, limit, search_all)

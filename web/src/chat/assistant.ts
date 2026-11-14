@@ -1,6 +1,8 @@
 import type { Feature } from 'geojson'
 import { apiFetch } from '../api/client'
 import { OKRESY, type OkresId } from '../map/geo'
+import exampleQuestions from './example-questions.json'
+import { validateAnswer } from './validateAnswer'
 
 export type AnswerRow = { okres: OkresId; value: number }
 
@@ -19,6 +21,7 @@ export type Artifact = {
 }
 
 export type Answer = {
+  result_ids?: string[]
   artifacts?: Artifact[]
   layer_actions?: { result_id: string; visible: boolean }[]
   text: string
@@ -38,13 +41,7 @@ export type Message =
 
 export const PENDING_QUESTION_KEY = 'pending_question'
 
-export const SUGGESTIONS = [
-  'Kolik obyvatel mají dostupné obce v jednotlivých okresech?',
-  'Jaký je podíl seniorů v dostupných obcích?',
-  'Kde mají dostupné obce nejvyšší podíl zeleně?',
-  'Porovnej 10 největších obcí podle počtu obyvatel v grafu a na mapě.',
-  'Najdi silniční trasu mezi Plzní a Klatovy a ukaž ji na mapě.',
-]
+export const SUGGESTIONS = exampleQuestions
 
 export async function ask(
   question: string,
@@ -55,12 +52,15 @@ export async function ask(
     ...new Set(
       history.flatMap((message) =>
         message.role === 'assistant'
-          ? (message.answer.artifacts ?? []).map((item) => item.result_id)
+          ? [
+              ...(message.answer.result_ids ?? []),
+              ...(message.answer.artifacts ?? []).map((item) => item.result_id),
+            ]
           : [],
       ),
     ),
   ].slice(-8)
-  return apiFetch<Answer>('/chat/ask', {
+  const response = await apiFetch<unknown>('/chat/ask', {
     method: 'POST',
     body: JSON.stringify({
       question,
@@ -75,6 +75,9 @@ export async function ask(
     }),
     signal,
   })
+  const answer = validateAnswer(response)
+  if (!answer) throw new Error('Server vrátil neplatnou odpověď. Zkuste dotaz znovu.')
+  return answer
 }
 
 const valueFormat = new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 2 })

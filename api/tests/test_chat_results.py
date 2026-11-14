@@ -119,3 +119,67 @@ class ChatResultTests(unittest.TestCase):
         item.rows[0]["value"] = -1
         with self.assertRaises(ValueError):
             results.present(intent, {item.result_id: item})
+
+    def test_decision_summary_uses_actual_parcel_areas_and_route_origins(self):
+        def parcel(key, name, area):
+            return results.remember(
+                {
+                    "title": name,
+                    "columns": [{"key": "area_m2", "label": "Výměra", "numeric": True}],
+                    "rows": [
+                        {
+                            "id": key,
+                            "name": name,
+                            "area_m2": area,
+                            "assessment_kind": "indicative",
+                            "land_type": "Zastavěná plocha a nádvoří",
+                        }
+                    ],
+                },
+                1,
+            )
+
+        first, second = parcel("parcela:1", "1", 53), parcel("parcela:2", "2", 111)
+        route = results.remember(
+            {
+                "title": "Dojezd",
+                "columns": [{"key": "distance_km", "label": "Trasa", "numeric": True}],
+                "rows": [
+                    {
+                        "id": "facility:school",
+                        "from_id": "parcela:2",
+                        "name": "Škola",
+                        "distance_km": 0.67,
+                        "duration_min": 1,
+                    }
+                ],
+            },
+            1,
+        )
+        context = {item.result_id: item for item in [first, second, route]}
+        text, artifact = results.comparison_summary({"result_ids": list(context)}, context, 1)
+        self.assertIn("58 m²", text)
+        self.assertIn("0,67 km", text)
+        self.assertIn("Výměra ale není volná plocha", text)
+        self.assertIn("neznáme", text) if "neznáme" in text else self.assertIn(
+            "Co zatím nevíme", text
+        )
+        self.assertEqual(len(artifact.rows), 2)
+        with self.assertRaises(ValueError):
+            results.comparison_summary({"result_ids": ["invented"]}, context, 1)
+
+    def test_click_parcels_cannot_be_compared_as_assessed_parcels(self):
+        items = [
+            results.remember(
+                {
+                    "title": "Kliknutí",
+                    "columns": [],
+                    "rows": [{"id": f"parcela:{i}", "area_m2": 50}],
+                },
+                1,
+            )
+            for i in [1, 2]
+        ]
+        context = {item.result_id: item for item in items}
+        with self.assertRaisesRegex(ValueError, "prevalidate_parcel"):
+            results.combine({"result_ids": list(context)}, context, 1)

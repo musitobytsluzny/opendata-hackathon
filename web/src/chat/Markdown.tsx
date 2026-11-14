@@ -13,7 +13,7 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
         disallowedElements={['img', 'input']}
         components={{
           a: ({ children, href }) =>
-            href ? (
+            href && /^https?:\/\//i.test(href) ? (
               <a href={href} target="_blank" rel="noopener noreferrer">
                 {children}
               </a>

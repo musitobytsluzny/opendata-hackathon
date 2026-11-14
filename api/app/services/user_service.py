@@ -1,16 +1,14 @@
-from pwdlib import PasswordHash
 from sqlalchemy.orm import Session
 
 from app.models.profile import Profile
 from app.models.user import User
 from app.schemas.user import UserCreate
-
-password_hash = PasswordHash.recommended()
+from app.services.passwords import hash_password
 
 
 def create_user(db: Session, user_data: UserCreate):
     # Zahashujeme heslo, nikdy neukládáme původní heslo
-    hashed_password = password_hash.hash(user_data.password)
+    hashed_password = hash_password(user_data.password)
 
     # Vytvoříme uživatele a jeho profil
     user = User(
@@ -44,7 +42,7 @@ def update_user(db: Session, user_id: int, user_data):
     update_data = user_data.model_dump(exclude_unset=True)
 
     if "password" in update_data:
-        update_data["password_hash"] = password_hash.hash(update_data.pop("password"))
+        update_data["password_hash"] = hash_password(update_data.pop("password"))
 
     profile_data = update_data.pop("profile", None)
 

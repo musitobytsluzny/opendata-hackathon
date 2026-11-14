@@ -30,8 +30,12 @@ docker compose run --rm etl python -m etl.main --dataset ruian
 ```
 
 Pro `--all` i jednotlivé importy se zachovávají existující řádky a FK. Všechny
-DB změny daného běhu jsou jedna transakce, chyba je vrátí zpět a ukončí proces
-nenulovým kódem. Souběžné běhy serializuje transakční advisory lock. Neúspěšný
+DB změny běžného běhu jsou jedna transakce, chyba je vrátí zpět a ukončí proces
+nenulovým kódem. Výjimkou je explicitní `--dataset parcels`: dokončené katastry
+se potvrzují jednotlivě a další spuštění naváže přes `etl/data/parcels-progress.json`.
+Úplnost již potvrzeného katastru se před přeskočením ověří počtem řádků v DB.
+Oficiálně prázdný export se ověřuje dalším dotazem na počet a zaznamená jako
+`source_empty`, nikoliv jako úspěšné pokrytí parcelami. Souběžné běhy serializuje transakční advisory lock. Neúspěšný
 externí import se nikdy automaticky nenahrazuje vymyšlenými hodnotami.
 
 `--reset` je destruktivní, explicitní volba pouze pro ETL tabulky; při běžném
@@ -64,7 +68,15 @@ samostatnou transakcí, aby dlouhé stahování neblokovalo čtení API.
 - AOPK: maloplošná i velkoplošná chráněná území, ochranná pásma a smluvní ochrana.
 - ZABAGED: automatické stažení silnic, neevidovaných silnic, staveb a vodních toků
   z oficiálního ArcGIS ČÚZK; lokální GeoPackage již není podmínkou.
-- OSM: zdravotnictví, školy, doprava a obchody z Overpass API.
+- OSM (`--dataset osm`): zdravotnictví, školy, doprava a obchody z regionálního
+  [Geofabrik PBF](https://download.geofabrik.de/europe/czech-republic/plzensky.html).
+  Kontroluje MD5, čte bodové i polygonové POI a zachovává jejich OSM identifikátory;
+  nevyžaduje dostupnost veřejného Overpass. Původní Overpass importér zůstává
+  dostupný jako samostatná funkce pro diagnostiku.
+- Kontext pěších tras (`--dataset route-context`): ze stejného ověřeného PBF
+  načítá geometrie komunikací, mapované přechody, signalizace a původní tagy
+  `sidewalk`, `lit` aj. do `osm_route_features`. Údaj z OSM neověřuje současný
+  stav v terénu. Data © přispěvatelé OpenStreetMap, licence ODbL.
 - ČHMÚ: nejnovější dostupný katalog vodoměrných stanic. Aktuální SPA je NULL,
   protože samotný katalog neobsahuje aktuální stav vody.
 - Sentinel: zatím pouze schéma, reálný výpočet NDVI není součástí pipeline.

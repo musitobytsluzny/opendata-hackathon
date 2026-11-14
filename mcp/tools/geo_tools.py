@@ -5,17 +5,28 @@ from mcp.server.fastmcp import Context, FastMCP
 from services.api_client import get_api_client
 
 
-async def _read(ctx: Context, path: str, params=None) -> dict:
+async def _read(ctx: Context, path: str, params=None, timeout=None) -> dict:
     request = ctx.request_context.request
     authorization = request.headers.get("authorization", "") if request else ""
     if not authorization.lower().startswith("bearer "):
         return {"error": "Přihlášení je vyžadované.", "status": 401}
     try:
         response = await get_api_client().client.get(
-            path, params=params, headers={"Authorization": authorization}
+            path,
+            params=params,
+            headers={"Authorization": authorization},
+            **({"timeout": timeout} if timeout is not None else {}),
         )
         if response.is_error:
-            return {"error": "Datový dotaz se nepodařil.", "status": response.status_code}
+            message = "Datový dotaz se nepodařil."
+            if 400 <= response.status_code < 500:
+                try:
+                    detail = response.json().get("detail")
+                except (ValueError, AttributeError):
+                    detail = None
+                if isinstance(detail, str):
+                    message = detail[:1000]
+            return {"error": message, "status": response.status_code}
         return response.json()
     except httpx.HTTPError:
         return {"error": "Datová služba je nedostupná.", "status": 503}
@@ -36,7 +47,9 @@ def register_geo_tools(server: FastMCP):
 
     @server.tool()
     async def prevalidate_point(lat: float, lon: float, ctx: Context) -> dict:
-        """Read indicative spatial checks at known WGS84 coordinates; never guess coordinates."""
+        """Read indicative spatial checks, zoning plan (územní plán / funkční využití / zastavitelnost)
+        and radon risk at known WGS84 coordinates; never guess coordinates.
+        """
         return await _read(ctx, "/data/prevalidate/point", {"lat": lat, "lon": lon})
 
     @server.tool()
@@ -46,9 +59,9 @@ def register_geo_tools(server: FastMCP):
         nazev_ku: str | None = None,
         ctx: Context = None,
     ) -> dict:
-        """Read indicative parcel checks using parcel number (cislo, e.g. '841/1' or '969')
-        and either cadastral-area code (kod_ku, e.g. 722618) or cadastral-area name
-        (nazev_ku, e.g. 'Bolevec', 'Plzeň').
+        """Read indicative parcel checks, zoning plan (územní plán / funkční využití / zastavitelnost)
+        and radon risk using parcel number (cislo, e.g. '841/1' or '969') and either cadastral-area code
+        (kod_ku, e.g. 722618) or cadastral-area name (nazev_ku, e.g. 'Bolevec', 'Plzeň').
         """
         params = {"cislo": cislo}
         if kod_ku is not None:
@@ -66,9 +79,9 @@ def register_geo_tools(server: FastMCP):
         ulice: str | None = None,
         ctx: Context = None,
     ) -> dict:
-        """Find parcel and read indicative spatial checks based on address or house number
-        (číslo popisné / orientační), street, and municipality (e.g. 'Bolevecká náves 1, Plzeň'
-        or cislo_popisne=1, obec='Plzeň').
+        """Find parcel and read indicative spatial checks, zoning plan (územní plán / funkční využití /
+        zastavitelnost) and radon risk based on address or house number (číslo popisné / orientační),
+        street, and municipality (e.g. 'Koterovská 85, Plzeň' or cislo_popisne=1, obec='Plzeň').
         """
         params = {}
         if adresa:
@@ -91,7 +104,9 @@ def register_geo_tools(server: FastMCP):
         ctx: Context = None,
     ) -> dict:
         """Search points of interest, facilities, schools, dormitories (domov mládeže),
-        healthcare, transport, or amenities by name, category, or municipality.
+        healthcare, transport, or amenities by name, category, or municipality. Supported
+        categories are healthcare, education, transport, and shopping; unsupported categories
+        such as sports or cultural facilities return no matches with a coverage note.
         """
         params = {"query": query}
         if obec:
@@ -242,7 +257,7 @@ def register_geo_tools(server: FastMCP):
     @server.tool()
     async def compare_results(result_ids: list[str]) -> dict:
         """Combine 2–6 verified result references with identical fields/units for side-by-side
-        comparison, e.g. parcels selected by clicking. No hand-entered values; host validates schemas.
+        comparison. For parcels: first prevalidate_parcel for EACH clicked parcel using name and kod_ku, then combine the NEW assessment result_ids. Click results alone do not assess restrictions. Use the returned combined result_id for the comparative chart, never an original one-row ID. No hand-entered values; host validates schemas.
         """
         return {"transform": {"kind": "combine", "result_ids": result_ids}}
 
@@ -340,26 +355,122 @@ def register_geo_tools(server: FastMCP):
 
     @server.tool()
     async def facility_alternatives(
-        place_id: str, radius_m: int = 20000, limit: int = 5, ctx: Context = None
+        place_id: str,
+        radius_m: int = 20000,
+        limit: int = 5,
+        kind: str | None = None,
+        ctx: Context = None,
     ) -> dict:
-        """Find other facilities of the same supported type/category near a known facility,
-        excluding itself. Use for 'another school/hospital/stop'. Does not assert capacity or current availability.
+        """Find other facilities near a known facility, excluding itself and duplicate campuses.
+        Schools default to all school levels, NOT implicitly the origin's level. Pass kind
+        (e.g. primary_school or secondary_school) only when that level is explicitly requested.
+        Hospitals stay hospitals; stops stay public transport. Does not assert capacity or current availability.
         """
         return await _read(
             ctx,
             "/data/facilities/alternatives",
-            {"place_id": place_id, "radius_m": radius_m, "limit": limit},
+            {
+                "place_id": place_id,
+                "radius_m": radius_m,
+                "limit": limit,
+                **({"kind": kind} if kind else {}),
+            },
         )
 
     @server.tool()
     async def rank_driving_candidates(
-        origin_id: str, candidate_ids: list[str], ctx: Context
+        origin_id: str, candidate_ids: list[str], ctx: Context, order_by: str = "distance"
     ) -> dict:
         """Compare 1–8 verified candidate IDs by real OSRM driving distance and modelled duration
-        in one routing matrix query. Discover candidates first using nearest_municipalities or
+        in one routing matrix query. order_by=duration means fastest by minutes; order_by=distance means shortest by km (default). Never conflate them. Discover candidates first using nearest_municipalities or
         nearby_facilities. Ranking applies only to these candidates, not all possible places.
         Missing routes remain missing; never substitute guessed times or straight-line estimates.
         """
         return await _read(
-            ctx, "/data/routes/rank", {"origin_id": origin_id, "candidate_ids": candidate_ids}
+            ctx,
+            "/data/routes/rank",
+            {"origin_id": origin_id, "candidate_ids": candidate_ids, "order_by": order_by},
+        )
+
+    @server.tool()
+    async def comparison_summary(result_ids: list[str]) -> dict:
+        """Prepare a grounded family/decision summary of 2–6 compared parcels from verified
+        result references. Include parcel results and driving results where available (max 8 refs).
+        The host computes area differences, preserves route origins and renders facts and unknowns.
+        No guessed garden space, building permission, school capacity or liveability claims.
+        Use for 'shrň poslední porovnání pro rodinu'; do not substitute speculative prose.
+        """
+        return {"comparison_summary": {"result_ids": result_ids}}
+
+    @server.tool()
+    async def route_context(
+        origin_id: str, destination_id: str, corridor_m: int = 30, ctx: Context = None
+    ) -> dict:
+        """Inspect actual map features along a computed FOOT route to school (FOSSGIS OSRM foot).
+        Uses a 10–100 m corridor and real intersections/proximity queries for flood zones,
+        watercourses, mapped crossings/signals, road classes and explicit/missing OSM sidewalk tags.
+        Mandatory before any statement about hazards or absence of features ALONG a journey;
+        endpoint checks or driving routes cannot substitute. This is NOT a child-safety rating.
+        Missing tags are unknown, watercourses aren't automatically hazards, bridges/traffic/weather
+        and real-world conditions aren't verified. Return exact mapped findings and unknowns, never 'safe'.
+        """
+        return await _read(
+            ctx,
+            "/data/routes/context",
+            {"origin_id": origin_id, "destination_id": destination_id, "corridor_m": corridor_m},
+        )
+
+    @server.tool()
+    async def balanced_parcels(
+        first_id: str, second_id: str, tolerance_m: float = 25, limit: int = 5, ctx: Context = None
+    ) -> dict:
+        """Search ALL loaded parcels for the smallest difference of WGS84 geodesic distances
+        to two verified institution IDs (facility:/poi: from search_amenities). Searches the whole
+        loaded region, not a radius or arbitrary shortlist. Returns actual polygons automatically.
+        Tolerance is explicit (default 25 m), tested BEFORE rounding; false means outside tolerance.
+        Exact numeric equality uses tolerance_m=0, never implies accuracy of the source in terrain.
+        For an explicitly local radius use balanced_parcels_nearby instead. This tool cannot silently
+        narrow the scope. Do not substitute a nearby address parcel for a verified institution.
+        No building/prosale/entrance/driving guarantees. Driving follow-up requires routes FROM
+        each candidate parcel TO both institutions, not a claim of a global driving optimum.
+        """
+        return await _read(
+            ctx,
+            "/data/parcels/balanced",
+            {
+                "first_id": first_id,
+                "second_id": second_id,
+                "search_all": True,
+                "tolerance_m": tolerance_m,
+                "limit": limit,
+            },
+            timeout=35,
+        )
+
+    @server.tool()
+    async def balanced_parcels_nearby(
+        first_id: str,
+        second_id: str,
+        radius_m: int = 5000,
+        tolerance_m: float = 25,
+        limit: int = 5,
+        ctx: Context = None,
+    ) -> dict:
+        """LOCAL variant only when the user requests a radius near the midpoint of two places.
+        Measures geodesic distances from parcel interior points, searches all loaded candidates in
+        radius 100–20000 m (default 5 km), never the whole region. Reports scope, tolerance and polygons.
+        For whole database or unspecified scope use balanced_parcels instead. No driving/building guarantees.
+        """
+        return await _read(
+            ctx,
+            "/data/parcels/balanced",
+            {
+                "first_id": first_id,
+                "second_id": second_id,
+                "search_all": False,
+                "radius_m": radius_m,
+                "tolerance_m": tolerance_m,
+                "limit": limit,
+            },
+            timeout=35,
         )

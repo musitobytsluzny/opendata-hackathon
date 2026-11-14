@@ -25,6 +25,11 @@ export function ResultView({
         ? artifact.rows.toSorted((a, b) => {
             const first = a[sort.key],
               second = b[sort.key]
+            if (
+              (first === null || first === undefined) &&
+              (second === null || second === undefined)
+            )
+              return 0
             if (first === null || first === undefined) return 1
             if (second === null || second === undefined) return -1
             const difference =
@@ -70,11 +75,15 @@ export function ResultView({
       ? formatValue(value, artifact.columns.find((column) => column.key === key)?.unit)
       : value === null || value === undefined
         ? '—'
-        : String(value)
+        : typeof value === 'boolean'
+          ? value
+            ? 'Ano'
+            : 'Ne'
+          : String(value)
   function download() {
     const cell = (value: unknown) => {
       let text = value == null ? '' : String(value)
-      if (/^[=+@\-\t\r]/.test(text) && typeof value !== 'number') text = "'" + text
+      if (/^(?:[\s\uFEFF]*[=+@-]|[\t\r])/.test(text) && typeof value !== 'number') text = "'" + text
       return '"' + text.replaceAll('"', '""') + '"'
     }
     const text = [

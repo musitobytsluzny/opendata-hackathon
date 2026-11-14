@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import insert
 from etl.config import DATABASE_URL, TARGET_CRS
 
 TABLES = (
+    "osm_route_features",
     "facility_poi",
     "municipality_status",
     "csu_demografie_obce",

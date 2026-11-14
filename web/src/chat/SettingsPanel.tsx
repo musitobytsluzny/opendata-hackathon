@@ -1,7 +1,6 @@
 import { DEFAULT_PREFERENCES, type Preferences } from '../hooks/usePreferences'
 import { useState } from 'react'
 import { Choice } from '../components/Choice'
-import { PALETTES } from '../map/palette'
 import { Icon } from '../components/Icon'
 
 type Props = {
@@ -15,10 +14,6 @@ type Props = {
 }
 
 const toggles = [
-  ['dimOutside', 'Ztmavit okolní státy'],
-  ['showTowns', 'Názvy měst'],
-  ['showLabels', 'Hodnoty na mapě'],
-  ['showLegend', 'Legenda a pokrytí dat'],
   ['autoFocus', 'Po odpovědi vycentrovat mapu'],
   ['autoScroll', 'Posouvat chat k nové odpovědi'],
   ['reducedMotion', 'Omezit animace'],
@@ -44,7 +39,7 @@ export function SettingsPanel({
       <p className="popover__who">
         Přihlášen jako <strong>{username}</strong>
       </p>
-      <p className="popover__heading">Mapa a konverzace</p>
+      <p className="popover__heading">Chování aplikace</p>
       {toggles.map(([key, label]) => (
         <label className="switch" key={key}>
           <input
@@ -56,61 +51,6 @@ export function SettingsPanel({
           {label}
         </label>
       ))}
-      <label className="settings__field">
-        <span>
-          Ztmavení okolí <output>{Math.round(preferences.dimOpacity * 100)} %</output>
-        </span>
-        <input
-          type="range"
-          min="0"
-          max="0.9"
-          step="0.05"
-          value={preferences.dimOpacity}
-          disabled={!preferences.dimOutside}
-          onChange={(event) => update('dimOpacity', Number(event.target.value))}
-        />
-      </label>
-      <label className="settings__field">
-        Mapový podklad
-        <select
-          aria-label="Mapový podklad"
-          value={preferences.basemap}
-          onChange={(event) => update('basemap', event.target.value as Preferences['basemap'])}
-        >
-          <option value="satellite">Satelitní · rychlejší přehled</option>
-          <option value="ortho">Ortofoto ČÚZK · větší detail</option>
-          <option value="dark">Tmavý · bez snímků</option>
-        </select>
-      </label>
-      <Choice
-        label="Barevná škála"
-        value={preferences.palette}
-        options={
-          [
-            {
-              value: 'blue',
-              label: 'Modrá',
-              swatch: (
-                <i
-                  className="choice__scale"
-                  style={{ background: `linear-gradient(90deg, ${PALETTES.blue.join(', ')})` }}
-                />
-              ),
-            },
-            {
-              value: 'cividis',
-              label: 'Kontrastní',
-              swatch: (
-                <i
-                  className="choice__scale"
-                  style={{ background: `linear-gradient(90deg, ${PALETTES.cividis.join(', ')})` }}
-                />
-              ),
-            },
-          ] as const
-        }
-        onChange={(value) => update('palette', value)}
-      />
       <Choice
         label="Vzhled"
         value={preferences.theme}

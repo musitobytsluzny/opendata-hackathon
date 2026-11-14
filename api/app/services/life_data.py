@@ -1,12 +1,22 @@
 """Measured neighbours, local services and alternatives from attributable spatial data."""
 
 import json
+import math
+import re
+import unicodedata
 
 import httpx
 from fastapi import HTTPException
 from sqlalchemy import text
 
-from app.services.workspace_data import column, feature, read_connection, resolve, result
+from app.services.workspace_data import (
+    column,
+    expand_institution_abbreviations,
+    feature,
+    read_connection,
+    resolve,
+    result,
+)
 
 KINDS = {
     "school": ("school", "primary_school", "secondary_school", "college", "university"),
@@ -127,6 +137,45 @@ def nearest_municipalities(
     )
 
 
+def same_institution_campus(first, second):
+    """Conservative cross-source campus deduplication, never merging generic facility labels."""
+
+    def words(value):
+        expanded = expand_institution_abbreviations(str(value).split(",", 1)[0]).casefold()
+        folded = "".join(
+            c for c in unicodedata.normalize("NFKD", expanded) if not unicodedata.combining(c)
+        )
+        return [word for word in re.findall(r"[^\W_]+", folded) if word not in {"a", "v", "ve"}]
+
+    one, two = words(first["name"]), words(second["name"])
+    short, long = sorted((one, two), key=len)
+    generic = {
+        "stredni",
+        "zakladni",
+        "vyssi",
+        "odborna",
+        "materska",
+        "skola",
+        "zeleznicni",
+        "stanice",
+        "zastavka",
+        "zarizeni",
+        "bez",
+        "uvedeneho",
+        "nazvu",
+    }
+    if len(short) < 3 or not set(short) - generic or long[: len(short)] != short:
+        return False
+    a, b = (json.loads(row["point"])["coordinates"] for row in (first, second))
+    lat1, lat2 = math.radians(a[1]), math.radians(b[1])
+    hav = (
+        math.sin((lat2 - lat1) / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(math.radians(b[0] - a[0]) / 2) ** 2
+    )
+    # Used only for entity matching tolerance. Reported distances are still PostGIS WGS84 measurements.
+    return 2 * 6371008.8 * math.asin(min(1, math.sqrt(hav))) <= 250
+
+
 def nearby_facilities(origin_id, kind, radius_m=10000, limit=5, exclude_id=None):
     if kind not in KINDS:
         raise HTTPException(422, "Neznámý druh služby.")
@@ -143,15 +192,17 @@ def nearby_facilities(origin_id, kind, radius_m=10000, limit=5, exclude_id=None)
                 FROM all_facility_poi p CROSS JOIN origin o
                 WHERE p.amenity = ANY(:amenities) AND p.place_id <> :exclude
                   AND p.place_id <> :origin AND ST_DWithin(p.geom::geography,o.g,:radius)
+                  AND NOT (lower(unaccent(p.name))=lower(unaccent(:origin_name)) AND ST_DWithin(p.geom::geography,o.g,100))
                   AND NOT (p.amenity='public_transport_stop' AND p.name=COALESCE(
                       (SELECT name FROM all_facility_poi WHERE place_id=:origin AND amenity='public_transport_stop'),''))
             ), distinct_places AS (
                 SELECT DISTINCT ON (group_key) * FROM matches ORDER BY group_key,distance_m,id
             )
-            SELECT * FROM distinct_places ORDER BY distance_m,id LIMIT :limit
+            SELECT * FROM distinct_places ORDER BY distance_m,id
         """),
                 {
                     "point": origin["point"],
+                    "origin_name": origin["name"],
                     "amenities": list(KINDS[kind]),
                     "exclude": exclude_id or "",
                     "origin": origin_id,
@@ -162,6 +213,16 @@ def nearby_facilities(origin_id, kind, radius_m=10000, limit=5, exclude_id=None)
             .mappings()
             .all()
         )
+    distinct = []
+    for row in data:
+        if same_institution_campus(row, origin):
+            continue
+        if any(same_institution_campus(row, previous) for previous in distinct):
+            continue
+        distinct.append(row)
+        if len(distinct) >= limit:
+            break
+    data = distinct
     rows = [
         {
             "id": r["id"],
@@ -225,13 +286,18 @@ def accessibility_summary(origin_id, radius_m=20000):
     return answer
 
 
-def facility_alternatives(place_id, radius_m=20000, limit=5):
+def facility_alternatives(place_id, radius_m=20000, limit=5, kind=None):
     with read_connection() as connection:
         resolve(connection, place_id)
         amenity = connection.scalar(
             text("SELECT amenity FROM all_facility_poi WHERE place_id=:id"), {"id": place_id}
         )
-    kind = next((kind for kind, types in KINDS.items() if types == (amenity,)), None)
+    if kind is None:
+        kind = (
+            "school"
+            if amenity in KINDS["school"]
+            else next((key for key, types in KINDS.items() if types == (amenity,)), None)
+        )
     if kind is None:
         kind = next((kind for kind, types in KINDS.items() if amenity in types), None)
     if kind is None:
@@ -239,7 +305,9 @@ def facility_alternatives(place_id, radius_m=20000, limit=5):
     return nearby_facilities(place_id, kind, radius_m, limit, exclude_id=place_id)
 
 
-def rank_driving_candidates(origin_id, candidate_ids):
+def rank_driving_candidates(origin_id, candidate_ids, order_by="distance"):
+    if order_by not in {"distance", "duration"}:
+        raise HTTPException(422, "Řazení musí být distance nebo duration.")
     if (
         not 1 <= len(candidate_ids) <= 8
         or len(set(candidate_ids)) != len(candidate_ids)
@@ -273,6 +341,8 @@ def rank_driving_candidates(origin_id, candidate_ids):
         rows = [
             {
                 "id": p["id"],
+                "from_id": origin_id,
+                "from": places[0]["name"],
                 "name": p["name"],
                 "distance_km": round(distance / 1000, 2) if distance is not None else None,
                 "duration_min": round(duration / 60, 1) if duration is not None else None,
@@ -285,11 +355,15 @@ def rank_driving_candidates(origin_id, candidate_ids):
         raise HTTPException(
             503, "Silniční porovnání není dostupné; délky ani časy neodhadujte."
         ) from None
-    rows.sort(key=lambda row: (row["distance_km"] is None, row["distance_km"] or 0))
+    sort_key = "distance_km" if order_by == "distance" else "duration_min"
+    rows.sort(
+        key=lambda row: (row[sort_key] is None, row[sort_key] if row[sort_key] is not None else 0)
+    )
     answer = spatial_result(
         "Porovnání dojezdu autem",
         rows,
         [
+            column("from", "Výchozí místo"),
             column("name", "Kandidát"),
             column("distance_km", "Délka nejrychlejší trasy", True, "km"),
             column("duration_min", "Modelový čas", True, "min"),
@@ -297,9 +371,15 @@ def rank_driving_candidates(origin_id, candidate_ids):
         places[0],
         [feature(p, point=True) for p in places[1:]],
         list({place["table"] for place in places}),
-        "OSRM / OpenStreetMap. Pouze zadaní kandidáti, nikoliv automaticky nejbližší místa z celé databáze. Modelový čas autem bez živé dopravy; nedostupná trasa zůstává prázdná.",
+        (
+            "Řazeno podle délky silniční trasy (km). "
+            if order_by == "distance"
+            else "Řazeno podle modelového času jízdy (min). "
+        )
+        + "Kratší trasa nemusí mít kratší čas. OSRM / OpenStreetMap. Pouze zadaní kandidáti, nikoliv automaticky nejbližší místa z celé databáze. Modelový čas autem bez živé dopravy; nedostupná trasa zůstává prázdná.",
     )
 
+    answer["ordering"] = order_by
     answer["result"]["sources"].append(
         {"name": "OSRM / OpenStreetMap", "url": "https://project-osrm.org/"}
     )

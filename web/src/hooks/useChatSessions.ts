@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Message } from '../chat/assistant'
+import { validateAnswer } from '../chat/validateAnswer'
 
 export type Session = {
   id: string
@@ -47,7 +48,17 @@ function load(key: string): Session[] {
       .slice(0, 30)
       .map((session) => ({
         ...session,
-        messages: session.messages.slice(-200),
+        messages: session.messages.slice(-200).flatMap((message): Message[] => {
+          if (message.role === 'assistant') {
+            const answer = validateAnswer(message.answer)
+            return answer ? [{ ...message, answer }] : []
+          }
+          return [
+            message.role === 'error'
+              ? { ...message, retry: typeof message.retry === 'string' ? message.retry : '' }
+              : message,
+          ]
+        }),
         title: typeof session.title === 'string' ? session.title.slice(0, 100) : undefined,
         draft: typeof session.draft === 'string' ? session.draft.slice(0, 4000) : '',
         updatedAt: Number.isFinite(session.updatedAt) ? session.updatedAt : Date.now(),
@@ -68,8 +79,9 @@ function save(key: string, sessions: Session[], currentId: string) {
       .map((session) => ({ ...session, messages: session.messages.slice(-200) }))
     localStorage.setItem(key, JSON.stringify(stored))
     localStorage.setItem(`${key}:active`, currentId)
+    return true
   } catch {
-    /* Storage is optional. */
+    return false
   }
 }
 export function useChatSessions(userId?: string, username?: string) {
@@ -93,6 +105,7 @@ export function useChatSessions(userId?: string, username?: string) {
     }
     return { sessions, id }
   })
+  const [storageUnavailable, setStorageUnavailable] = useState(false)
   const [sessions, setSessions] = useState(initial.sessions)
   const [currentId, setCurrentId] = useState(initial.id)
   const sessionsRef = useRef(sessions)
@@ -102,7 +115,10 @@ export function useChatSessions(userId?: string, username?: string) {
     currentIdRef.current = currentId
   }, [sessions, currentId])
   useEffect(() => {
-    const timer = window.setTimeout(() => save(key, sessions, currentId), 250)
+    const timer = window.setTimeout(
+      () => setStorageUnavailable(!save(key, sessions, currentId)),
+      250,
+    )
     return () => window.clearTimeout(timer)
   }, [key, sessions, currentId])
   useEffect(() => {
@@ -144,5 +160,16 @@ export function useChatSessions(userId?: string, username?: string) {
       /* Storage optional. */
     }
   }
-  return { clear, restore, sessions, current, currentId, setCurrentId, update, create, remove }
+  return {
+    storageUnavailable,
+    clear,
+    restore,
+    sessions,
+    current,
+    currentId,
+    setCurrentId,
+    update,
+    create,
+    remove,
+  }
 }

@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -13,6 +15,25 @@ app = FastAPI(
     description="Backend API for our hackathon project",
     version="1.0.0",
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(_: Request, error: RequestValidationError):
+    # Raw invalid values can include passwords, NaN/Infinity or invalid Unicode.
+    # Return only the stable public error fields, never the submitted values.
+    def clean(value):
+        return value.encode("utf-8", "replace").decode("utf-8") if isinstance(value, str) else value
+
+    details = [
+        {
+            "loc": [clean(part) for part in item["loc"]],
+            "msg": clean(item["msg"]),
+            "type": clean(item["type"]),
+        }
+        for item in error.errors()[:50]
+    ]
+    return JSONResponse(status_code=422, content={"detail": details})
+
 
 app.include_router(user_router)
 app.include_router(auth_router)

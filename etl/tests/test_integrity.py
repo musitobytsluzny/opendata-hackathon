@@ -198,3 +198,128 @@ class IntegrityTests(unittest.TestCase):
                 ),
                 3,
             )
+
+    def test_osm_hstore_preserves_multiline_and_escaped_tags(self):
+        from etl.downloaders.osm_extract import tags_from_hstore
+
+        self.assertEqual(
+            tags_from_hstore('"note"=>"first\nsecond","sidewalk"=>"no"'),
+            {"note": "first\nsecond", "sidewalk": "no"},
+        )
+        self.assertEqual(tags_from_hstore(None), {})
+
+    def test_regional_osm_extract_checksum_and_point_polygon_import(self):
+        import hashlib
+        import tempfile
+        from pathlib import Path
+
+        from etl.downloaders.osm_extract import fetch_and_load_osm_extract
+
+        points = gpd.GeoDataFrame(
+            [
+                {
+                    "osm_id": "11",
+                    "name": "Lékárna fixture",
+                    "other_tags": '"amenity"=>"pharmacy"',
+                    "geometry": Point(13, 49),
+                },
+                {
+                    "osm_id": "12",
+                    "name": "Zastávka fixture",
+                    "highway": "bus_stop",
+                    "geometry": Point(13.001, 49),
+                },
+            ],
+            geometry="geometry",
+            crs=4326,
+        )
+        polygons = gpd.GeoDataFrame(
+            [
+                {
+                    "osm_id": None,
+                    "osm_way_id": "13",
+                    "name": "Potraviny fixture",
+                    "shop": "supermarket",
+                    "geometry": Polygon([(13, 49), (13.001, 49), (13.001, 49.001), (13, 49)]),
+                }
+            ],
+            geometry="geometry",
+            crs=4326,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "fixture.pbf"
+            path.write_bytes(b"fixture")
+            checksum = Path(directory) / "fixture.md5"
+            checksum.write_text(hashlib.md5(b"fixture").hexdigest() + " fixture.pbf")
+            with (
+                patch(
+                    "etl.downloaders.osm_extract.download_file",
+                    side_effect=lambda url, *a, **k: checksum if url.endswith(".md5") else path,
+                ),
+                patch("etl.downloaders.osm_extract.gpd.read_file", side_effect=[points, polygons]),
+            ):
+                self.assertEqual(fetch_and_load_osm_extract(), 3)
+            checksum.write_text("0" * 32 + " fixture.pbf")
+            with (
+                patch(
+                    "etl.downloaders.osm_extract.download_file",
+                    side_effect=lambda url, *a, **k: checksum if url.endswith(".md5") else path,
+                ),
+                patch("etl.downloaders.osm_extract.gpd.read_file") as read,
+            ):
+                with self.assertRaisesRegex(ValueError, "checksum mismatch"):
+                    fetch_and_load_osm_extract()
+                read.assert_not_called()
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                text("SELECT id,category,amenity,GeometryType(geom) FROM osm_poi ORDER BY id")
+            ).all()
+            self.assertEqual([r[0] for r in rows], ["osm-node-11", "osm-node-12", "osm-way-13"])
+            self.assertEqual(rows[0][2], "pharmacy")
+            self.assertTrue(all(r[3] == "POINT" for r in rows))
+
+    def test_parcel_source_gap_preserves_other_units_and_resumes_completed_units(self):
+        import tempfile
+        from pathlib import Path
+
+        from etl.downloaders.parcels import fetch_and_load_parcels
+
+        seed.run_seed()
+        with self.engine.begin() as connection:
+            connection.execute(text("DELETE FROM ruian_parcely"))
+            connection.execute(
+                text("DELETE FROM etl_dataset_status WHERE table_name='ruian_parcely'")
+            )
+        empty = gpd.GeoDataFrame(geometry=[], crs=4326)
+
+        def fetch(service, layer, name, force, **kwargs):
+            if "722618" in kwargs["where"]:
+                return empty
+            code = int(kwargs["where"].split("=")[1])
+            return gpd.GeoDataFrame(
+                [
+                    {
+                        "id": code * 100,
+                        "cisloparcely": "1",
+                        "vymeraparcely": 100,
+                        "druhpozemkukod": 2,
+                        "geometry": Polygon([(13, 49), (13.001, 49), (13.001, 49.001), (13, 49)]),
+                    }
+                ],
+                geometry="geometry",
+                crs=4326,
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                patch("etl.downloaders.parcels.DATA_DIR", Path(directory)),
+                patch("etl.downloaders.parcels.fetch_layer", side_effect=fetch) as source,
+                patch("etl.downloaders.parcels.download_json", return_value={"count": 0}),
+            ):
+                self.assertEqual(fetch_and_load_parcels(), 2)
+                self.assertEqual(source.call_count, 3)
+                source.reset_mock()
+                self.assertEqual(fetch_and_load_parcels(), 2)
+                self.assertEqual(source.call_count, 1)
+        with self.engine.connect() as connection:
+            self.assertEqual(connection.scalar(text("SELECT count(*) FROM ruian_parcely")), 2)

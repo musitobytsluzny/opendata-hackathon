@@ -1,0 +1,2709 @@
+{
+  "generated_at": "2026-11-14T03:47:54.730035+00:00",
+  "model": "gemini-3.1-flash-lite",
+  "method": "Latest successful scenario per ID across live runs. Cases 07/08 require a verified parcel origin. Retests preserve each selected scenario timestamp and run; this is not a claim of a single flawless run or future model reliability.",
+  "cases": [
+    {
+      "id": "school-find",
+      "question": "Najdi školu VOŠ a SPŠE Plzeň.",
+      "expected": "school",
+      "text": "Škola byla nalezena: **Vyšší odborná škola a Střední průmyslová škola elektrotechnická, Plzeň, Koterovská 85**.\n\nPokud si ji přejete zobrazit v mapě, dejte vědět.",
+      "artifacts": [
+        {
+          "result_id": "dd63ea600f5c8f585d3a0320",
+          "title": "Nalezená místa",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Místo",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "id",
+              "label": "Identifikátor",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "id": "facility:zabaged-47-3055871076597760",
+              "name": "Vyšší odborná škola a Střední průmyslová škola elektrotechnická, Plzeň, Koterovská 85"
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "osm_poi",
+              "data_kind": "external",
+              "row_count": 4849,
+              "loaded_at": "2026-11-14T03:00:52.588404+00:00"
+            }
+          ],
+          "note": "Bod obce či katastru je vnitřní bod území, nikoliv adresa nebo vstup do budovy.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 1
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 4.52,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "search_amenities",
+          "arguments": {
+            "query": "VOŠ a SPŠE Plzeň",
+            "obec": "Plzeň"
+          }
+        }
+      ],
+      "run": "demo-validation-confirmed.json",
+      "tested_at": "2026-11-14T03:44:18.205679+00:00"
+    },
+    {
+      "id": "school-map",
+      "question": "Ukaž ji na mapě.",
+      "expected": "map",
+      "text": "Škola byla zobrazena na mapě.",
+      "artifacts": [
+        {
+          "result_id": "dd63ea600f5c8f585d3a0320",
+          "title": "Nalezená místa",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Místo",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "id",
+              "label": "Identifikátor",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "id": "facility:zabaged-47-3055871076597760",
+              "name": "Vyšší odborná škola a Střední průmyslová škola elektrotechnická, Plzeň, Koterovská 85"
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "osm_poi",
+              "data_kind": "external",
+              "row_count": 4849,
+              "loaded_at": "2026-11-14T03:00:52.588404+00:00"
+            }
+          ],
+          "note": "Bod obce či katastru je vnitřní bod území, nikoliv adresa nebo vstup do budovy.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 1
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 3.03,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "show_map",
+          "arguments": {
+            "result_id": "dd63ea600f5c8f585d3a0320"
+          }
+        }
+      ],
+      "run": "demo-validation-confirmed.json",
+      "tested_at": "2026-11-14T03:44:18.205679+00:00"
+    },
+    {
+      "id": "school-neighbours",
+      "question": "Top 3 nejbližší školy k této škole, původní školu vynech.",
+      "expected": "nearby",
+      "text": "Zde jsou 3 nejbližší školy v okolí, seřazené podle vzdušné vzdálenosti:\n\n| Zařízení | Typ | Vzdušná vzdálenost |\n| :--- | :--- | :--- |\n| **Metropolitní univerzita Praha, o.p.s.** | university | 90 m |\n| **Základní škola Easy Start s.r.o.** | primary_school | 189 m |\n| **20. Základní škola** | school | 435 m |\n\nPřejete si některou z těchto škol zobrazit na mapě nebo zobrazit podrobnější tabulku?",
+      "artifacts": [
+        {
+          "result_id": "f05d1333ff18b0e292e25595",
+          "title": "Školy · Vyšší odborná škola a Střední průmyslová škola elektrotechnická, Plzeň, Koterovská 85",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Zařízení",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "type",
+              "label": "Typ",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "distance_m",
+              "label": "Vzdušná vzdálenost",
+              "numeric": true,
+              "additive": false,
+              "unit": "m"
+            },
+            {
+              "key": "publisher",
+              "label": "Zdroj",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "id": "facility:zabaged-47-5393607733280768",
+              "name": "Metropolitní univerzita Praha, o.p.s. / Univerzitní středisko Plzeň",
+              "type": "university",
+              "distance_m": 90.0,
+              "publisher": "ČÚZK · ZABAGED"
+            },
+            {
+              "id": "facility:zabaged-47-3056134562775040",
+              "name": "Základní škola Easy Start s.r.o.",
+              "type": "primary_school",
+              "distance_m": 188.6,
+              "publisher": "ČÚZK · ZABAGED"
+            },
+            {
+              "id": "poi:osm-way-1208274602",
+              "name": "20. Základní škola",
+              "type": "school",
+              "distance_m": 434.5,
+              "publisher": "OpenStreetMap"
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "osm_poi",
+              "data_kind": "external",
+              "row_count": 4849,
+              "loaded_at": "2026-11-14T03:00:52.588404+00:00"
+            }
+          ],
+          "note": "Pouze načtená zařízení do 20000 m, vzdušně od bodu místa. Nemocnice nejsou nahrazené ordinacemi. Zastávky neznamenají potvrzený odjezd ani frekvenci spojů; MHD PMDP pokrývá Plzeň, ne celý kraj. Prázdný výsledek nedokazuje, že služba neexistuje; ordinační hodiny, kapacity ani aktuální provoz nejsou ověřené.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 4
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 3.12,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "facility_alternatives",
+          "arguments": {
+            "limit": 3,
+            "kind": "school",
+            "place_id": "facility:zabaged-47-3055871076597760"
+          }
+        }
+      ],
+      "run": "demo-validation-confirmed.json",
+      "tested_at": "2026-11-14T03:44:18.205679+00:00"
+    },
+    {
+      "id": "01-population",
+      "question": "Kterých pět obcí Plzeňského kraje má nejvíc obyvatel? Vyber vhodný graf.",
+      "expected": "chart5",
+      "text": "Pět obcí Plzeňského kraje s největším počtem obyvatel:\n\n| Obec | Okres | Počet obyvatel |\n| :--- | :--- | :--- |\n| **Plzeň** | Plzeň-město | 187 863 |\n| **Klatovy** | Klatovy | 22 921 |\n| **Tachov** | Tachov | 14 308 |\n| **Rokycany** | Rokycany | 14 248 |\n| **Domažlice** | Domažlice | 10 973 |\n\n*Poznámka: Hodnoty vycházejí z dostupné demografické databáze obcí.*",
+      "artifacts": [
+        {
+          "result_id": "2d3eb948e519ec300968e651",
+          "title": "Počet obyvatel dostupných obcí",
+          "view": "bar",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Obec",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "district",
+              "label": "Okres",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "value",
+              "label": "Počet obyvatel dostupných obcí",
+              "numeric": true,
+              "additive": true,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "id": "obec:554791",
+              "name": "Plzeň",
+              "district": "Plzeň-město",
+              "value": 187863.0
+            },
+            {
+              "id": "obec:555771",
+              "name": "Klatovy",
+              "district": "Klatovy",
+              "value": 22921.0
+            },
+            {
+              "id": "obec:560715",
+              "name": "Tachov",
+              "district": "Tachov",
+              "value": 14308.0
+            },
+            {
+              "id": "obec:559717",
+              "name": "Rokycany",
+              "district": "Rokycany",
+              "value": 14248.0
+            },
+            {
+              "id": "obec:553425",
+              "name": "Domažlice",
+              "district": "Domažlice",
+              "value": 10973.0
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "csu_demografie_obce",
+              "data_kind": "external",
+              "row_count": 501,
+              "loaded_at": "2026-11-14T02:04:51.181513+00:00"
+            },
+            {
+              "table_name": "ruian_obce",
+              "data_kind": "external",
+              "row_count": 501,
+              "loaded_at": "2026-11-14T02:04:17.823041+00:00"
+            }
+          ],
+          "note": "Výběr nejvýše 5 obcí s dostupnou hodnotou; nejde o součet celého kraje.",
+          "sample": false,
+          "value_key": "value",
+          "label_key": "name",
+          "geometry_count": 5
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 3.38,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "municipality_statistics",
+          "arguments": {
+            "limit": 5,
+            "metric": "population",
+            "descending": true
+          }
+        },
+        {
+          "name": "show_chart",
+          "arguments": {
+            "kind": "bar",
+            "label_key": "name",
+            "value_key": "value",
+            "result_id": "2d3eb948e519ec300968e651"
+          }
+        }
+      ],
+      "run": "demo-validation-complete.json",
+      "tested_at": "2026-11-14T03:40:46.002242+00:00"
+    },
+    {
+      "id": "02-area",
+      "question": "A teď podle rozlohy v m². Ukaž koláčový graf.",
+      "expected": "pie5",
+      "text": "Zde je 5 obcí Plzeňského kraje s největší rozlohou (v m²). Procentuální podíl v grafu vyjadřuje poměr mezi těmito pěti obcemi:\n\n| Obec | Okres | Rozloha (m²) |\n| :--- | :--- | :--- |\n| **Plzeň** | Plzeň-město | 137 684 608 |\n| **Bor** | Tachov | 116 482 547 |\n| **Prášily** | Klatovy | 112 320 333 |\n| **Čachrov** | Klatovy | 88 234 277 |\n| **Manětín** | Plzeň-sever | 84 671 203 |",
+      "artifacts": [
+        {
+          "result_id": "4c07b27654b9e73c867f21b0",
+          "title": "Rozloha obce",
+          "view": "table",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Obec",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "district",
+              "label": "Okres",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "value",
+              "label": "Rozloha obce",
+              "numeric": true,
+              "additive": true,
+              "unit": "m²"
+            }
+          ],
+          "rows": [
+            {
+              "id": "obec:554791",
+              "name": "Plzeň",
+              "district": "Plzeň-město",
+              "value": 137684607.82346195
+            },
+            {
+              "id": "obec:560758",
+              "name": "Bor",
+              "district": "Tachov",
+              "value": 116482547.04251438
+            },
+            {
+              "id": "obec:556084",
+              "name": "Prášily",
+              "district": "Klatovy",
+              "value": 112320332.92793949
+            },
+            {
+              "id": "obec:555941",
+              "name": "Čachrov",
+              "district": "Klatovy",
+              "value": 88234276.829266
+            },
+            {
+              "id": "obec:559202",
+              "name": "Manětín",
+              "district": "Plzeň-sever",
+              "value": 84671203.24496739
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "ruian_obce",
+              "data_kind": "external",
+              "row_count": 501,
+              "loaded_at": "2026-11-14T02:04:17.823041+00:00"
+            }
+          ],
+          "note": "Výběr nejvýše 5 obcí s dostupnou hodnotou; nejde o součet celého kraje.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 5
+        },
+        {
+          "result_id": "4c07b27654b9e73c867f21b0",
+          "title": "Rozloha obce",
+          "view": "pie",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Obec",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "district",
+              "label": "Okres",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "value",
+              "label": "Rozloha obce",
+              "numeric": true,
+              "additive": true,
+              "unit": "m²"
+            }
+          ],
+          "rows": [
+            {
+              "id": "obec:554791",
+              "name": "Plzeň",
+              "district": "Plzeň-město",
+              "value": 137684607.82346195
+            },
+            {
+              "id": "obec:560758",
+              "name": "Bor",
+              "district": "Tachov",
+              "value": 116482547.04251438
+            },
+            {
+              "id": "obec:556084",
+              "name": "Prášily",
+              "district": "Klatovy",
+              "value": 112320332.92793949
+            },
+            {
+              "id": "obec:555941",
+              "name": "Čachrov",
+              "district": "Klatovy",
+              "value": 88234276.829266
+            },
+            {
+              "id": "obec:559202",
+              "name": "Manětín",
+              "district": "Plzeň-sever",
+              "value": 84671203.24496739
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "ruian_obce",
+              "data_kind": "external",
+              "row_count": 501,
+              "loaded_at": "2026-11-14T02:04:17.823041+00:00"
+            }
+          ],
+          "note": "Výběr nejvýše 5 obcí s dostupnou hodnotou; nejde o součet celého kraje.",
+          "sample": false,
+          "value_key": "value",
+          "label_key": "name",
+          "geometry_count": 5
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 4.21,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "municipality_statistics",
+          "arguments": {
+            "limit": 5,
+            "metric": "area_m2",
+            "descending": true
+          }
+        },
+        {
+          "name": "show_table",
+          "arguments": {
+            "result_id": "4c07b27654b9e73c867f21b0"
+          }
+        },
+        {
+          "name": "show_chart",
+          "arguments": {
+            "kind": "pie",
+            "result_id": "4c07b27654b9e73c867f21b0",
+            "value_key": "value",
+            "label_key": "name"
+          }
+        }
+      ],
+      "run": "demo-validation-complete.json",
+      "tested_at": "2026-11-14T03:40:46.002242+00:00"
+    },
+    {
+      "id": "03-cities",
+      "question": "Najdi tři nejbližší města k Žihli a ukaž je na mapě.",
+      "expected": "cities3",
+      "text": "Tři nejbližší města k Žihli v Plzeňském kraji jsou Manětín, Kralovice a Plasy. Jejich polohu jsem zobrazil na mapě.\n\n| Město | Vzdálenost (vzdušná) |\n| :--- | :--- |\n| **Manětín** | 9,5 km |\n| **Kralovice** | 11,7 km |\n| **Plasy** | 13,8 km |",
+      "artifacts": [
+        {
+          "result_id": "7a616872e55fb80beca7f525",
+          "title": "Nejbližší města",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Místo",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "status",
+              "label": "Status RÚIAN",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "population",
+              "label": "Obyvatelé",
+              "numeric": true,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "distance_m",
+              "label": "Vzdušná vzdálenost",
+              "numeric": true,
+              "additive": false,
+              "unit": "m"
+            }
+          ],
+          "rows": [
+            {
+              "id": "obec:559202",
+              "name": "Manětín",
+              "status": "Město",
+              "population": 1143.0,
+              "distance_m": 9500.4
+            },
+            {
+              "id": "obec:559075",
+              "name": "Kralovice",
+              "status": "Město",
+              "population": 3450.0,
+              "distance_m": 11676.6
+            },
+            {
+              "id": "obec:559351",
+              "name": "Plasy",
+              "status": "Město",
+              "population": 2888.0,
+              "distance_m": 13761.6
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "csu_demografie_obce",
+              "data_kind": "external",
+              "row_count": 501,
+              "loaded_at": "2026-11-14T02:04:51.181513+00:00"
+            },
+            {
+              "table_name": "municipality_status",
+              "data_kind": "external",
+              "row_count": 501,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "ruian_obce",
+              "data_kind": "external",
+              "row_count": 501,
+              "loaded_at": "2026-11-14T02:04:17.823041+00:00"
+            }
+          ],
+          "note": "Skutečná geodetická vzdálenost mezi vnitřními body správních území, nikoliv trasa po silnici. Pouze načtené obce Plzeňského kraje do 50000 m; města mají oficiální status RÚIAN 3/4/5. ",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 4
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 28.25,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "search_places",
+          "arguments": {
+            "kind": "obec",
+            "query": "Žihle"
+          }
+        },
+        {
+          "name": "nearest_municipalities",
+          "arguments": {
+            "cities_only": true,
+            "origin_id": "obec:559695",
+            "limit": 3
+          }
+        },
+        {
+          "name": "show_map",
+          "arguments": {
+            "result_id": "7a616872e55fb80beca7f525"
+          }
+        }
+      ],
+      "run": "demo-validation-complete.json",
+      "tested_at": "2026-11-14T03:40:46.002242+00:00"
+    },
+    {
+      "id": "04-driving",
+      "question": "Seřaď tato města podle skutečné vzdálenosti autem ze Žihle. Přidej modelový čas jízdy.",
+      "expected": "driving",
+      "text": "Zde je pořadí měst podle skutečné silniční vzdálenosti a modelového času jízdy ze Žihle:\n\n| Město | Vzdálenost (km) | Čas jízdy (min) |\n| :--- | :--- | :--- |\n| **Manětín** | 13,6 km | 13,3 min |\n| **Plasy** | 19,4 km | 31,5 min |\n| **Kralovice** | 20,3 km | 24,6 min |\n\n*Poznámka: Hodnoty jsou vypočteny na základě modelových dat (OSRM/OSM) a nezohledňují živou dopravu.*",
+      "artifacts": [
+        {
+          "result_id": "816bc6b82a09c687b3659fb0",
+          "title": "Porovnání dojezdu autem",
+          "view": "map",
+          "columns": [
+            {
+              "key": "from",
+              "label": "Výchozí místo",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "name",
+              "label": "Kandidát",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "distance_km",
+              "label": "Délka nejrychlejší trasy",
+              "numeric": true,
+              "additive": false,
+              "unit": "km"
+            },
+            {
+              "key": "duration_min",
+              "label": "Modelový čas",
+              "numeric": true,
+              "additive": false,
+              "unit": "min"
+            }
+          ],
+          "rows": [
+            {
+              "id": "obec:559202",
+              "from_id": "obec:559695",
+              "from": "Žihle",
+              "name": "Manětín",
+              "distance_km": 13.6,
+              "duration_min": 13.3
+            },
+            {
+              "id": "obec:559351",
+              "from_id": "obec:559695",
+              "from": "Žihle",
+              "name": "Plasy",
+              "distance_km": 19.43,
+              "duration_min": 31.5
+            },
+            {
+              "id": "obec:559075",
+              "from_id": "obec:559695",
+              "from": "Žihle",
+              "name": "Kralovice",
+              "distance_km": 20.33,
+              "duration_min": 24.6
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "ruian_obce",
+              "data_kind": "external",
+              "row_count": 501,
+              "loaded_at": "2026-11-14T02:04:17.823041+00:00"
+            },
+            {
+              "name": "OSRM / OpenStreetMap",
+              "url": "https://project-osrm.org/"
+            }
+          ],
+          "note": "OSRM / OpenStreetMap. Pouze zadaní kandidáti, nikoliv automaticky nejbližší místa z celé databáze. Modelový čas autem bez živé dopravy; nedostupná trasa zůstává prázdná.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 4
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 2.99,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "rank_driving_candidates",
+          "arguments": {
+            "origin_id": "obec:559695",
+            "candidate_ids": ["obec:559202", "obec:559075", "obec:559351"]
+          }
+        }
+      ],
+      "run": "demo-validation-complete.json",
+      "tested_at": "2026-11-14T03:40:46.002242+00:00"
+    },
+    {
+      "id": "05-alternatives",
+      "question": "Najdi v okolí Žihle alternativní obce s podobným počtem obyvatel, v rozmezí ±30 %.",
+      "expected": "alternatives",
+      "text": "V okolí Žihle se nacházejí tyto obce s podobným počtem obyvatel (v rozmezí ±30 %):\n\n| Místo | Status | Počet obyvatel | Vzdálenost (vzdušná) |\n| :--- | :--- | :--- | :--- |\n| **Manětín** | Město | 1 143 | 9,5 km |\n| **Kožlany** | Město | 1 520 | 16,2 km |\n| **Trnová** | Obec | 980 | 21,2 km |\n| **Hromnice** | Obec | 1 349 | 23,5 km |\n| **Ledce** | Obec | 935 | 25,8 km |\n\n*Uvedené vzdálenosti jsou vzdušnou čarou mezi vnitřními body území.*",
+      "artifacts": [
+        {
+          "result_id": "58e991f46300e54f0a17a534",
+          "title": "Nejbližší obce",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Místo",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "status",
+              "label": "Status RÚIAN",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "population",
+              "label": "Obyvatelé",
+              "numeric": true,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "distance_m",
+              "label": "Vzdušná vzdálenost",
+              "numeric": true,
+              "additive": false,
+              "unit": "m"
+            }
+          ],
+          "rows": [
+            {
+              "id": "obec:559202",
+              "name": "Manětín",
+              "status": "Město",
+              "population": 1143.0,
+              "distance_m": 9500.4
+            },
+            {
+              "id": "obec:559067",
+              "name": "Kožlany",
+              "status": "Město",
+              "population": 1520.0,
+              "distance_m": 16201.5
+            },
+            {
+              "id": "obec:559504",
+              "name": "Trnová",
+              "status": "Obec",
+              "population": 980.0,
+              "distance_m": 21163.7
+            },
+            {
+              "id": "obec:558915",
+              "name": "Hromnice",
+              "status": "Obec",
+              "population": 1349.0,
+              "distance_m": 23473.8
+            },
+            {
+              "id": "obec:559148",
+              "name": "Ledce",
+              "status": "Obec",
+              "population": 935.0,
+              "distance_m": 25798.9
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "csu_demografie_obce",
+              "data_kind": "external",
+              "row_count": 501,
+              "loaded_at": "2026-11-14T02:04:51.181513+00:00"
+            },
+            {
+              "table_name": "municipality_status",
+              "data_kind": "external",
+              "row_count": 501,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "ruian_obce",
+              "data_kind": "external",
+              "row_count": 501,
+              "loaded_at": "2026-11-14T02:04:17.823041+00:00"
+            }
+          ],
+          "note": "Skutečná geodetická vzdálenost mezi vnitřními body správních území, nikoliv trasa po silnici. Pouze načtené obce Plzeňského kraje do 50000 m; města mají oficiální status RÚIAN 3/4/5. Podobnost znamená počet obyvatel v rozmezí ±30.0 % od výchozí obce. ",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 6
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 3.37,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "alternative_municipalities",
+          "arguments": {
+            "radius_m": 50000,
+            "population_difference_pct": 30,
+            "limit": 5,
+            "origin_id": "obec:559695"
+          }
+        }
+      ],
+      "run": "demo-validation-complete.json",
+      "tested_at": "2026-11-14T03:40:46.002242+00:00"
+    },
+    {
+      "id": "06-address",
+      "question": "Najdi parcelu na adrese Žihle 294, 331 65. Přibliž ji a ukaž její hranici.",
+      "expected": "parcel",
+      "text": "Adresa č.p. 294 v obci Žihle odpovídá parcele č. 438, k.ú. Žihle. Parcelu jsem zobrazil na mapě.\n\n**Základní údaje:**\n*   **Parcelní číslo:** 438\n*   **Výměra:** 184 m²\n*   **Druh pozemku:** Zastavěná plocha a nádvoří\n\n*Upozornění: Katastrální druh pozemku ani příznak stavební plochy nepotvrzuje stavební povolení ani soulad s územním plánem. Tyto podrobnosti nejsou v mých datech dostupné.*",
+      "artifacts": [
+        {
+          "result_id": "dd0536958c84bfd7d7b6a6da",
+          "title": "Parcela 438 · Žihle",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Parcela",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "area_m2",
+              "label": "Výměra",
+              "numeric": true,
+              "additive": false,
+              "unit": "m²"
+            }
+          ],
+          "rows": [
+            {
+              "id": "parcela:1706686435",
+              "kod_ku": 796891.0,
+              "cislo_parcely": "438",
+              "name": "Parcela 438 · Žihle",
+              "area_m2": 184.0,
+              "land_type": "Zastavěná plocha a nádvoří",
+              "assessment_kind": "indicative",
+              "planning_assessment": "not_available",
+              "flood_q20": false,
+              "flood_q100": false,
+              "active_flood_zone": false,
+              "protected_area": false
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 1685998,
+              "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+            }
+          ],
+          "note": "",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 1
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 8.32,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "prevalidate_address",
+          "arguments": {
+            "obec": "Žihle",
+            "cislo_popisne": 294
+          }
+        },
+        {
+          "name": "show_map",
+          "arguments": {
+            "result_id": "dd0536958c84bfd7d7b6a6da"
+          }
+        }
+      ],
+      "run": "demo-validation-confirmed.json",
+      "tested_at": "2026-11-14T03:44:18.205679+00:00"
+    },
+    {
+      "id": "07-life",
+      "question": "Jaké každodenní služby jsou kolem této parcely? Ukaž nejbližší školu, školku, nemocnici a veřejnou dopravu. Chybějící údaje označ.",
+      "expected": "life",
+      "text": "V okolí parcely č. 438 v Žihli je dostupnost každodenních služeb následující:\n\n| Služba | Nejbližší zařízení | Vzdálenost (vzdušně) |\n| :--- | :--- | :--- |\n| **Škola** | Masarykova ZŠ a MŠ Žihle | 624 m |\n| **Školka** | Masarykova ZŠ a MŠ Žihle | 877 m |\n| **Veřejná doprava** | Zastávka \"Žihle, nám.\" | 285 m |\n| **Nemocnice** | *nenalezeno v dostupných datech* | - |\n| **Lékárna** | *nenalezeno v dostupných datech* | - |\n\n*Poznámka: Chybějící údaje v datech neznamenají neexistenci služby v širším okolí, pouze chybějící nález v aktuálně načtených vrstvách (do 10 km).*",
+      "artifacts": [
+        {
+          "result_id": "5a4b829aa97881374f05f26f",
+          "title": "Dostupnost každodenních služeb",
+          "view": "map",
+          "columns": [
+            {
+              "key": "place",
+              "label": "Výchozí místo",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "service",
+              "label": "Služba",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "name",
+              "label": "Nejbližší načtené zařízení",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "distance_m",
+              "label": "Vzdušně",
+              "numeric": true,
+              "additive": false,
+              "unit": "m"
+            },
+            {
+              "key": "publisher",
+              "label": "Zdroj",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "place": "438",
+              "service": "Školy",
+              "name": "Masarykova základní škola a mateřská škola v Žihli",
+              "distance_m": 623.9,
+              "publisher": "ČÚZK · ZABAGED"
+            },
+            {
+              "place": "438",
+              "service": "Mateřské školy",
+              "name": "Masarykova základní škola a mateřská škola v Žihli",
+              "distance_m": 876.9,
+              "publisher": "ČÚZK · ZABAGED"
+            },
+            {
+              "place": "438",
+              "service": "Nemocnice",
+              "name": null,
+              "distance_m": null,
+              "publisher": null
+            },
+            {
+              "place": "438",
+              "service": "Lékárny",
+              "name": null,
+              "distance_m": null,
+              "publisher": null
+            },
+            {
+              "place": "438",
+              "service": "Veřejná doprava",
+              "name": "Žihle, nám.",
+              "distance_m": 285.1,
+              "publisher": "OpenStreetMap"
+            },
+            {
+              "place": "438",
+              "service": "Potraviny",
+              "name": "COOP TUTY",
+              "distance_m": 781.8,
+              "publisher": "OpenStreetMap"
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "osm_poi",
+              "data_kind": "external",
+              "row_count": 4849,
+              "loaded_at": "2026-11-14T03:00:52.588404+00:00"
+            }
+          ],
+          "note": "Nejbližší načtené zařízení pro každou službu do 10000 m. Prázdné pole znamená chybějící nález v datech, nikoliv neexistující službu. Jde o měření polohy, nikoliv pěší dochozí čas, aktuální odjezdy či kvalitu života.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 5
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 3.34,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "accessibility_summary",
+          "arguments": {
+            "radius_m": 10000,
+            "origin_id": "parcela:1706686435"
+          }
+        }
+      ],
+      "run": "demo-validation.json",
+      "tested_at": "2026-11-14T03:03:45.286893+00:00"
+    },
+    {
+      "id": "08-schools-driving",
+      "question": "Najdi tři nejbližší základní školy. Porovnej jejich dojezd autem od této parcely.",
+      "expected": "school-driving",
+      "text": "Zde je přehled tří nejbližších základních škol z okolí vaší parcely (č. 438, Žihle), seřazený podle dojezdové vzdálenosti autem:\n\n| Škola | Vzdálenost (km) | Modelový čas (min) |\n| :--- | :--- | :--- |\n| **Masarykova ZŠ a MŠ v Žihli** | 0,75 | 1,4 |\n| **ZŠ a MŠ Mladotice** | 8,24 | 12,8 |\n| **ZŠ a MŠ Jesenice** | 11,75 | 12,3 |\n\n*Poznámka: Časy jsou modelové (bez zohlednění aktuální dopravní situace). Pořadí odpovídá délce nejrychlejší silniční trasy.*",
+      "artifacts": [
+        {
+          "result_id": "37ac2413253caf9fd33b83ae",
+          "title": "Základní školy · 438",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Zařízení",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "type",
+              "label": "Typ",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "distance_m",
+              "label": "Vzdušná vzdálenost",
+              "numeric": true,
+              "additive": false,
+              "unit": "m"
+            },
+            {
+              "key": "publisher",
+              "label": "Zdroj",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "id": "facility:zabaged-47-3056199289274368",
+              "name": "Masarykova základní škola a mateřská škola v Žihli",
+              "type": "primary_school",
+              "distance_m": 623.9,
+              "publisher": "ČÚZK · ZABAGED"
+            },
+            {
+              "id": "facility:zabaged-47-3056068376657920",
+              "name": "Základní škola a mateřská škola Mladotice, okres Plzeň-sever, příspěvková organizace",
+              "type": "primary_school",
+              "distance_m": 6696.7,
+              "publisher": "ČÚZK · ZABAGED"
+            },
+            {
+              "id": "facility:zabaged-47-3056059316961280",
+              "name": "Základní škola a mateřská škola Jesenice, okres Rakovník",
+              "type": "primary_school",
+              "distance_m": 8350.0,
+              "publisher": "ČÚZK · ZABAGED"
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "osm_poi",
+              "data_kind": "external",
+              "row_count": 4849,
+              "loaded_at": "2026-11-14T03:00:52.588404+00:00"
+            },
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 826443,
+              "loaded_at": "2026-11-14T03:04:37.992873+00:00"
+            }
+          ],
+          "note": "Pouze načtená zařízení do 20000 m, vzdušně od bodu místa. Nemocnice nejsou nahrazené ordinacemi. Zastávky neznamenají potvrzený odjezd ani frekvenci spojů; MHD PMDP pokrývá Plzeň, ne celý kraj. Prázdný výsledek nedokazuje, že služba neexistuje; ordinační hodiny, kapacity ani aktuální provoz nejsou ověřené.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 4
+        },
+        {
+          "result_id": "aa98718d562a0adc090c9c80",
+          "title": "Porovnání dojezdu autem",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Kandidát",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "distance_km",
+              "label": "Délka nejrychlejší trasy",
+              "numeric": true,
+              "additive": false,
+              "unit": "km"
+            },
+            {
+              "key": "duration_min",
+              "label": "Modelový čas",
+              "numeric": true,
+              "additive": false,
+              "unit": "min"
+            }
+          ],
+          "rows": [
+            {
+              "id": "facility:zabaged-47-3056199289274368",
+              "name": "Masarykova základní škola a mateřská škola v Žihli",
+              "distance_km": 0.75,
+              "duration_min": 1.4
+            },
+            {
+              "id": "facility:zabaged-47-3056068376657920",
+              "name": "Základní škola a mateřská škola Mladotice, okres Plzeň-sever, příspěvková organizace",
+              "distance_km": 8.24,
+              "duration_min": 12.8
+            },
+            {
+              "id": "facility:zabaged-47-3056059316961280",
+              "name": "Základní škola a mateřská škola Jesenice, okres Rakovník",
+              "distance_km": 11.75,
+              "duration_min": 12.3
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 826443,
+              "loaded_at": "2026-11-14T03:04:37.992873+00:00"
+            },
+            {
+              "name": "OSRM / OpenStreetMap",
+              "url": "https://project-osrm.org/"
+            }
+          ],
+          "note": "OSRM / OpenStreetMap. Pouze zadaní kandidáti, nikoliv automaticky nejbližší místa z celé databáze. Modelový čas autem bez živé dopravy; nedostupná trasa zůstává prázdná.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 4
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 9.63,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "search_places",
+          "arguments": {
+            "query": "základní škola v okolí Žihle",
+            "kind": "poi"
+          }
+        },
+        {
+          "name": "nearby_facilities",
+          "arguments": {
+            "kind": "primary_school",
+            "radius_m": 20000,
+            "limit": 3,
+            "origin_id": "parcela:1706686435"
+          }
+        },
+        {
+          "name": "rank_driving_candidates",
+          "arguments": {
+            "origin_id": "parcela:1706686435",
+            "candidate_ids": [
+              "facility:zabaged-47-3056199289274368",
+              "facility:zabaged-47-3056068376657920",
+              "facility:zabaged-47-3056059316961280"
+            ]
+          }
+        }
+      ],
+      "run": "demo-validation.json",
+      "tested_at": "2026-11-14T03:03:45.286893+00:00"
+    },
+    {
+      "id": "08b-school-route-context",
+      "question": "Jsou cestou z parcely na adrese Žihle 294 do nejbližší základní školy ve stejné obci nějaká nebezpečí, která by mohla čekat děti? Ověř skutečnou pěší trasu a ukaž mapové nálezy i chybějící údaje.",
+      "expected": "foot-context",
+      "text": "**Pěší cesta: 438 → Masarykova základní škola a mateřská škola v Žihli**\n\nVypočtená trasa měří **770 m**, modelový čas je **10.3 min**. Trasu a nálezy zobrazuji na mapě.\n\nKontrola koridoru do **30 m** od trasy:\n\n- **Aktivní záplavové zóny:** 0 mapových prvků; bez nálezu v načtené vrstvě\n- **Vymezené území Q100:** 0 mapových prvků; bez nálezu v načtené vrstvě\n- **Mapované vodní toky:** 3 mapových prvků; v koridoru 30 m\n- **Mapované přechody/křížení pro chodce:** 0 mapových prvků; bez nálezu v načtené vrstvě\n- **Mapované dopravní signalizace:** 0 mapových prvků; bez nálezu v načtené vrstvě\n- **Komunikace vyšších tříd v okolí trasy:** 6 mapových prvků; v koridoru 30 m\n- **Úseky se značkou sidewalk=no/none:** 0 mapových prvků; bez nálezu v načtené vrstvě\n- **Úseky bez údaje o chodníku:** 20 mapových prvků; v koridoru 30 m\n- **Úseky se značkou lit=no:** 0 mapových prvků; bez nálezu v načtené vrstvě\n\nPočet prvků není počet nebezpečí ani potvrzení, že je dítě musí překonat. Tok nemusí představovat překážku; průnik v mapě neověřuje most ani výškové oddělení.\n\n**Co údaje neříkají:** Chybějící údaj o chodníku neznamená chybějící chodník. `sidewalk=no` znamená mapovaný údaj o absenci chodníku, nikoli zákaz či nemožnost chůze; samostatná pěší cesta může být vedle silnice. Nulový nález přechodu, osvětlení nebo záplav nepotvrzuje jejich nepřítomnost v terénu ani bezpečnost cesty.\n\n**Neověřeno:** aktuální provoz a rychlosti, rozhled, stav povrchu, funkčnost signalizace a osvětlení, počasí, kriminalita a vhodnost pro konkrétní dítě. Koncové body jsou přichycené k pěší síti do 150 m; skutečné vstupy do budov nejsou potvrzené.",
+      "artifacts": [
+        {
+          "result_id": "5a9312483297362e963ce082",
+          "title": "Nalezená místa",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Místo",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "id",
+              "label": "Identifikátor",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "id": "facility:zabaged-47-3056199289274368",
+              "name": "Masarykova základní škola a mateřská škola v Žihli"
+            },
+            {
+              "id": "facility:zabaged-47-3056488041938944",
+              "name": "Masarykova základní škola a mateřská škola v Žihli"
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "osm_poi",
+              "data_kind": "external",
+              "row_count": 4849,
+              "loaded_at": "2026-11-14T03:00:52.588404+00:00"
+            }
+          ],
+          "note": "Bod obce či katastru je vnitřní bod území, nikoliv adresa nebo vstup do budovy.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 2
+        },
+        {
+          "result_id": "9bcc7b9c8631f9420cdc48f7",
+          "title": "Mapové jevy podél pěší cesty",
+          "view": "map",
+          "columns": [
+            {
+              "key": "check",
+              "label": "Kontrola",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "mapped_count",
+              "label": "Mapových prvků",
+              "numeric": true,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "status",
+              "label": "Rozsah zjištění",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "check": "Aktivní záplavové zóny",
+              "mapped_count": 0.0,
+              "status": "bez nálezu v načtené vrstvě"
+            },
+            {
+              "check": "Vymezené území Q100",
+              "mapped_count": 0.0,
+              "status": "bez nálezu v načtené vrstvě"
+            },
+            {
+              "check": "Mapované vodní toky",
+              "mapped_count": 3.0,
+              "status": "v koridoru 30 m"
+            },
+            {
+              "check": "Mapované přechody/křížení pro chodce",
+              "mapped_count": 0.0,
+              "status": "bez nálezu v načtené vrstvě"
+            },
+            {
+              "check": "Mapované dopravní signalizace",
+              "mapped_count": 0.0,
+              "status": "bez nálezu v načtené vrstvě"
+            },
+            {
+              "check": "Komunikace vyšších tříd v okolí trasy",
+              "mapped_count": 6.0,
+              "status": "v koridoru 30 m"
+            },
+            {
+              "check": "Úseky se značkou sidewalk=no/none",
+              "mapped_count": 0.0,
+              "status": "bez nálezu v načtené vrstvě"
+            },
+            {
+              "check": "Úseky bez údaje o chodníku",
+              "mapped_count": 20.0,
+              "status": "v koridoru 30 m"
+            },
+            {
+              "check": "Úseky se značkou lit=no",
+              "mapped_count": 0.0,
+              "status": "bez nálezu v načtené vrstvě"
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "osm_route_features",
+              "data_kind": "external",
+              "row_count": 145806,
+              "loaded_at": "2026-11-14T03:36:47.894767+00:00"
+            },
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 1685998,
+              "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+            },
+            {
+              "table_name": "vuv_zaplavova_uzemi",
+              "data_kind": "external",
+              "row_count": 633,
+              "loaded_at": "2026-11-14T02:04:51.395485+00:00"
+            },
+            {
+              "table_name": "zabaged_vodni_toky",
+              "data_kind": "external",
+              "row_count": 75832,
+              "loaded_at": "2026-11-14T02:05:26.664896+00:00"
+            },
+            {
+              "name": "FOSSGIS · OSRM foot / OpenStreetMap",
+              "url": "https://routing.openstreetmap.de/"
+            }
+          ],
+          "note": "Skutečná pěší trasa 770 m, modelový čas 10.3 min. Kontrola koridoru do 30 m, nikoliv celkový posudek bezpečnosti. Body mohou být přichyceny k pěší síti do 150 m; vchody nejsou potvrzené. Vodní tok není sám o sobě označené nebezpečí; 2D blízkost neřeší mosty a mimoúrovňová křížení. Chybějící sidewalk tag není důkaz chybějícího chodníku. Počet mapových prvků není počet nebezpečí. Neověřeno: aktuální provoz a rychlosti, funkčnost signalizace a osvětlení, stav povrchu, rozhled, počasí, kriminalita a bezpečnost pro konkrétní dítě.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 27
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 5.43,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "search_amenities",
+          "arguments": {
+            "query": "základní škola",
+            "obec": "Žihle"
+          }
+        },
+        {
+          "name": "route_context",
+          "arguments": {
+            "destination_id": "facility:zabaged-47-3056199289274368",
+            "origin_id": "parcela:1706686435"
+          }
+        }
+      ],
+      "run": "demo-validation-confirmed.json",
+      "tested_at": "2026-11-14T03:44:18.205679+00:00"
+    },
+    {
+      "id": "09-layers",
+      "question": "Zobraz kolem této parcely záplavová území a chráněná území v okruhu dvou kilometrů.",
+      "expected": "layers",
+      "text": "Záplavová a chráněná území v okruhu 2 km od parcely č. 438 v Žihli jsem načetl a zobrazil na mapě.\n\n**Nalezené prvky:**\n*   **Záplavová území:** V okolí se vyskytují záplavové zóny spojené s tokem (Mladotický potok).\n*   **Chráněná území:** V blízkosti byla identifikována přírodní památka „U báby – U lomu“.\n\nZobrazené vrstvy obsahují pouze aktuálně načtená data z registrů; neznamená to úplný výčet všech environmentálních limitů.",
+      "artifacts": [
+        {
+          "result_id": "ad0f35669a85f1d7e3d8147b",
+          "title": "Záplavová území · 438",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Prvek",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "name": "Mladotický p."
+            },
+            {
+              "name": "Mladotický p."
+            },
+            {
+              "name": "Mladotický p."
+            },
+            {
+              "name": "Záplavové území"
+            },
+            {
+              "name": "Mladotický p."
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "vuv_zaplavova_uzemi",
+              "data_kind": "external",
+              "row_count": 633,
+              "loaded_at": "2026-11-14T02:04:51.395485+00:00"
+            }
+          ],
+          "note": "Průnik s okolím 2000 m od bodu místa. Jen skutečně načtená data.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 5
+        },
+        {
+          "result_id": "94fb8b2d730c2cf39f21d0f9",
+          "title": "Chráněná území · 438",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Prvek",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "name": "U báby - U lomu"
+            },
+            {
+              "name": "U báby - U lomu"
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "aopk_chranena_uzemi",
+              "data_kind": "external",
+              "row_count": 935,
+              "loaded_at": "2026-11-14T02:05:18.375786+00:00"
+            }
+          ],
+          "note": "Průnik s okolím 2000 m od bodu místa. Jen skutečně načtená data.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 2
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 4.59,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "load_map_layer",
+          "arguments": {
+            "around_id": "parcela:1706686435",
+            "radius_m": 2000,
+            "layer": "flood"
+          }
+        },
+        {
+          "name": "load_map_layer",
+          "arguments": {
+            "around_id": "parcela:1706686435",
+            "layer": "protected",
+            "radius_m": 2000
+          }
+        },
+        {
+          "name": "show_map",
+          "arguments": {
+            "result_id": "ad0f35669a85f1d7e3d8147b"
+          }
+        },
+        {
+          "name": "show_map",
+          "arguments": {
+            "result_id": "94fb8b2d730c2cf39f21d0f9"
+          }
+        }
+      ],
+      "run": "demo-validation-confirmed.json",
+      "tested_at": "2026-11-14T03:44:18.205679+00:00"
+    },
+    {
+      "id": "10-hide",
+      "question": "Skryj chráněná území a nech zobrazenou parcelu a záplavové oblasti.",
+      "expected": "hide",
+      "text": "Chráněná území jsem v mapě skryl. Zobrazení parcely i záplavových oblastí zůstává aktivní.",
+      "artifacts": [],
+      "layer_actions": [
+        {
+          "result_id": "94fb8b2d730c2cf39f21d0f9",
+          "visible": false
+        }
+      ],
+      "status": "passed",
+      "seconds": 2.61,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "set_map_layer",
+          "arguments": {
+            "visible": false,
+            "result_id": "94fb8b2d730c2cf39f21d0f9"
+          }
+        }
+      ],
+      "run": "demo-validation-confirmed.json",
+      "tested_at": "2026-11-14T03:44:18.205679+00:00"
+    },
+    {
+      "id": "11-compare",
+      "question": "Porovnej dvě parcely, které jsem právě vybral v mapě, podle výměry, druhu pozemku a evidovaných prostorových omezení. Výměry zobraz vhodným grafem.",
+      "expected": "comparison",
+      "selection_method": "Two actual building parcels within 200 m of Žihle 294 → PostGIS interior points → authenticated map-click endpoint; browser gestures covered separately by Playwright.",
+      "text": "### Naměřená fakta\n\n| Parcela | Celková výměra | Katastrální druh pozemku |\n| --- | ---: | --- |\n| 110/2 | 53 m² | Zastavěná plocha a nádvoří |\n| 33 | 111 m² | Zastavěná plocha a nádvoří |\n\n### Průniky s dostupnými vrstvami\n\n| Parcela | Q20 | Q100 | Aktivní záplavová zóna | Ochrana přírody |\n| --- | --- | --- | --- | --- |\n| 110/2 | nezjištěn v datech | nezjištěn v datech | nezjištěn v datech | nezjištěn v datech |\n| 33 | nezjištěn v datech | nezjištěn v datech | nezjištěn v datech | nezjištěn v datech |\n\nNezjištěný průnik je pouze výsledek kontroly načtených vrstev; není zárukou absence rizik ani jiných omezení.\n\n### Rozdíly a kompromisy\n\nParcela 33 má o 58 m² větší celkovou výměru než parcela 110/2. Výměra ale není volná plocha: neříká, kolik místa zbývá pro zahradu, parkování nebo novou stavbu.\nRodina může porovnat doloženou celkovou výměru a naměřený dojezd. Z těchto ukazatelů samotných nelze určit vhodnost parcely pro bydlení ani kvalitu školy.\n\n### Co zatím nevíme\n\n- Volná a zastavěná plocha, podoba a technický stav případné stavby.\n- Přípustné využití podle územního plánu, povolení a úplná omezení konkrétního záměru.\n- Dostupnost a kapacita sítí, kapacita školy, aktuální provoz zařízení a bezpečnost pěší trasy.\n\nKatastrální druh pozemku ani orientační prostorové kontroly nepotvrzují možnost výstavby. Shrnutí používá pouze vrácené datové výběry.",
+      "artifacts": [
+        {
+          "result_id": "770e3e4aefb26da13324d76b",
+          "title": "Parcela 110/2 · Žihle",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Parcela",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "area_m2",
+              "label": "Výměra",
+              "numeric": true,
+              "additive": false,
+              "unit": "m²"
+            }
+          ],
+          "rows": [
+            {
+              "id": "parcela:1706369435",
+              "kod_ku": 796891.0,
+              "cislo_parcely": "110/2",
+              "name": "Parcela 110/2 · Žihle",
+              "area_m2": 53.0,
+              "land_type": "Zastavěná plocha a nádvoří",
+              "assessment_kind": "indicative",
+              "planning_assessment": "not_available",
+              "flood_q20": false,
+              "flood_q100": false,
+              "active_flood_zone": false,
+              "protected_area": false
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 1685998,
+              "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+            }
+          ],
+          "note": "",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 1
+        },
+        {
+          "result_id": "668ba2e6c88247ec3a6698c9",
+          "title": "Parcela 33 · Žihle",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Parcela",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "area_m2",
+              "label": "Výměra",
+              "numeric": true,
+              "additive": false,
+              "unit": "m²"
+            }
+          ],
+          "rows": [
+            {
+              "id": "parcela:1706296435",
+              "kod_ku": 796891.0,
+              "cislo_parcely": "33",
+              "name": "Parcela 33 · Žihle",
+              "area_m2": 111.0,
+              "land_type": "Zastavěná plocha a nádvoří",
+              "assessment_kind": "indicative",
+              "planning_assessment": "not_available",
+              "flood_q20": false,
+              "flood_q100": false,
+              "active_flood_zone": false,
+              "protected_area": false
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 1685998,
+              "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+            }
+          ],
+          "note": "",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 1
+        },
+        {
+          "result_id": "3de7847842fdcb36332a2fe3",
+          "title": "Ověřené porovnání parcel",
+          "view": "bar",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Parcela",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "area_m2",
+              "label": "Celková výměra",
+              "numeric": true,
+              "additive": true,
+              "unit": "m²"
+            },
+            {
+              "key": "land_type",
+              "label": "Katastrální druh",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "id": "parcela:1706369435",
+              "kod_ku": 796891.0,
+              "cislo_parcely": "110/2",
+              "name": "110/2",
+              "area_m2": 53.0,
+              "land_type": "Zastavěná plocha a nádvoří",
+              "assessment_kind": "indicative",
+              "planning_assessment": "not_available",
+              "flood_q20": false,
+              "flood_q100": false,
+              "active_flood_zone": false,
+              "protected_area": false
+            },
+            {
+              "id": "parcela:1706296435",
+              "kod_ku": 796891.0,
+              "cislo_parcely": "33",
+              "name": "33",
+              "area_m2": 111.0,
+              "land_type": "Zastavěná plocha a nádvoří",
+              "assessment_kind": "indicative",
+              "planning_assessment": "not_available",
+              "flood_q20": false,
+              "flood_q100": false,
+              "active_flood_zone": false,
+              "protected_area": false
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 1685998,
+              "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+            }
+          ],
+          "note": "Celková výměra není nezastavěná plocha ani stavební povolení.",
+          "sample": false,
+          "value_key": "area_m2",
+          "label_key": "name",
+          "geometry_count": 0
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 6.5,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "compare_results",
+          "arguments": {
+            "result_ids": ["bb6188221aa8d802e000fa85", "befe8fd7326f4b4ac4fe36a5"]
+          }
+        },
+        {
+          "name": "prevalidate_parcel",
+          "arguments": {
+            "cislo": "110/2",
+            "kod_ku": 796891
+          }
+        },
+        {
+          "name": "prevalidate_parcel",
+          "arguments": {
+            "kod_ku": 796891,
+            "cislo": "33"
+          }
+        },
+        {
+          "name": "compare_results",
+          "arguments": {
+            "result_ids": ["770e3e4aefb26da13324d76b", "668ba2e6c88247ec3a6698c9"]
+          }
+        },
+        {
+          "name": "show_chart",
+          "arguments": {
+            "value_key": "area_m2",
+            "label_key": "name",
+            "result_id": "7b182f8abda71d900ac4cabb",
+            "kind": "auto"
+          }
+        },
+        {
+          "name": "comparison_summary",
+          "arguments": {
+            "result_ids": ["770e3e4aefb26da13324d76b", "668ba2e6c88247ec3a6698c9"]
+          }
+        }
+      ],
+      "run": "demo-validation-summary-final.json",
+      "tested_at": "2026-11-14T03:47:08.884983+00:00"
+    },
+    {
+      "id": "12-compare-schools",
+      "question": "Kolem každé z těchto dvou parcel najdi nejbližší základní školu a porovnej dostupnost autem.",
+      "expected": "comparison-driving",
+      "text": "Nejbližší základní školou pro obě parcely je **Masarykova základní škola a mateřská škola v Žihli**.\n\n### Porovnání dojezdu autem ke škole\n\n| Výchozí parcela | Školské zařízení | Vzdálenost (silniční) | Modelový čas (auto) |\n| :--- | :--- | :---: | :---: |\n| **110/2** | Masarykova ZŠ a MŠ Žihle | 0,53 km | 0,8 min |\n| **33** | Masarykova ZŠ a MŠ Žihle | 0,67 km | 1,0 min |\n\n*Poznámka: Modelový čas je vypočítán OSRM a nezohledňuje živou dopravu ani aktuální uzavírky.*\n\nPro obě parcely je dostupnost školy autem srovnatelná a velmi krátká. Pokud potřebujete vyhodnotit cestu pro školáka, doporučuji nehodnotit pouze dojezd autem, ale prověřit pěší trasu (včetně mapových prvků jako jsou přechody či toky) pomocí nástroje pro pěší dostupnost, který lépe odpovídá každodenní cestě dítěte.",
+      "artifacts": [
+        {
+          "result_id": "b3a952c286a989934e49e72c",
+          "title": "Základní školy · 110/2",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Zařízení",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "type",
+              "label": "Typ",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "distance_m",
+              "label": "Vzdušná vzdálenost",
+              "numeric": true,
+              "additive": false,
+              "unit": "m"
+            },
+            {
+              "key": "publisher",
+              "label": "Zdroj",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "id": "facility:zabaged-47-3056199289274368",
+              "name": "Masarykova základní škola a mateřská škola v Žihli",
+              "type": "primary_school",
+              "distance_m": 488.6,
+              "publisher": "ČÚZK · ZABAGED"
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "osm_poi",
+              "data_kind": "external",
+              "row_count": 4849,
+              "loaded_at": "2026-11-14T03:00:52.588404+00:00"
+            },
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 1685998,
+              "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+            }
+          ],
+          "note": "Pouze načtená zařízení do 20000 m, vzdušně od bodu místa. Nemocnice nejsou nahrazené ordinacemi. Zastávky neznamenají potvrzený odjezd ani frekvenci spojů; MHD PMDP pokrývá Plzeň, ne celý kraj. Prázdný výsledek nedokazuje, že služba neexistuje; ordinační hodiny, kapacity ani aktuální provoz nejsou ověřené.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 2
+        },
+        {
+          "result_id": "49e3828441079622427977eb",
+          "title": "Základní školy · 33",
+          "view": "map",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Zařízení",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "type",
+              "label": "Typ",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "distance_m",
+              "label": "Vzdušná vzdálenost",
+              "numeric": true,
+              "additive": false,
+              "unit": "m"
+            },
+            {
+              "key": "publisher",
+              "label": "Zdroj",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "id": "facility:zabaged-47-3056199289274368",
+              "name": "Masarykova základní škola a mateřská škola v Žihli",
+              "type": "primary_school",
+              "distance_m": 533.8,
+              "publisher": "ČÚZK · ZABAGED"
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "osm_poi",
+              "data_kind": "external",
+              "row_count": 4849,
+              "loaded_at": "2026-11-14T03:00:52.588404+00:00"
+            },
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 1685998,
+              "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+            }
+          ],
+          "note": "Pouze načtená zařízení do 20000 m, vzdušně od bodu místa. Nemocnice nejsou nahrazené ordinacemi. Zastávky neznamenají potvrzený odjezd ani frekvenci spojů; MHD PMDP pokrývá Plzeň, ne celý kraj. Prázdný výsledek nedokazuje, že služba neexistuje; ordinační hodiny, kapacity ani aktuální provoz nejsou ověřené.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 2
+        },
+        {
+          "result_id": "28fd8a43579d8322519692c5",
+          "title": "Porovnání dojezdu autem",
+          "view": "map",
+          "columns": [
+            {
+              "key": "from",
+              "label": "Výchozí místo",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "name",
+              "label": "Kandidát",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "distance_km",
+              "label": "Délka nejrychlejší trasy",
+              "numeric": true,
+              "additive": false,
+              "unit": "km"
+            },
+            {
+              "key": "duration_min",
+              "label": "Modelový čas",
+              "numeric": true,
+              "additive": false,
+              "unit": "min"
+            }
+          ],
+          "rows": [
+            {
+              "id": "facility:zabaged-47-3056199289274368",
+              "from_id": "parcela:1706369435",
+              "from": "110/2",
+              "name": "Masarykova základní škola a mateřská škola v Žihli",
+              "distance_km": 0.53,
+              "duration_min": 0.8
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 1685998,
+              "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+            },
+            {
+              "name": "OSRM / OpenStreetMap",
+              "url": "https://project-osrm.org/"
+            }
+          ],
+          "note": "OSRM / OpenStreetMap. Pouze zadaní kandidáti, nikoliv automaticky nejbližší místa z celé databáze. Modelový čas autem bez živé dopravy; nedostupná trasa zůstává prázdná.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 2
+        },
+        {
+          "result_id": "175e32b9b6c6a5d65299711b",
+          "title": "Porovnání dojezdu autem",
+          "view": "map",
+          "columns": [
+            {
+              "key": "from",
+              "label": "Výchozí místo",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "name",
+              "label": "Kandidát",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "distance_km",
+              "label": "Délka nejrychlejší trasy",
+              "numeric": true,
+              "additive": false,
+              "unit": "km"
+            },
+            {
+              "key": "duration_min",
+              "label": "Modelový čas",
+              "numeric": true,
+              "additive": false,
+              "unit": "min"
+            }
+          ],
+          "rows": [
+            {
+              "id": "facility:zabaged-47-3056199289274368",
+              "from_id": "parcela:1706296435",
+              "from": "33",
+              "name": "Masarykova základní škola a mateřská škola v Žihli",
+              "distance_km": 0.67,
+              "duration_min": 1.0
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 1685998,
+              "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+            },
+            {
+              "name": "OSRM / OpenStreetMap",
+              "url": "https://project-osrm.org/"
+            }
+          ],
+          "note": "OSRM / OpenStreetMap. Pouze zadaní kandidáti, nikoliv automaticky nejbližší místa z celé databáze. Modelový čas autem bez živé dopravy; nedostupná trasa zůstává prázdná.",
+          "sample": false,
+          "value_key": null,
+          "label_key": null,
+          "geometry_count": 2
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 4.97,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        },
+        {
+          "name": "nearby_facilities",
+          "arguments": {
+            "kind": "primary_school",
+            "limit": 1,
+            "origin_id": "parcela:1706369435",
+            "radius_m": 20000
+          }
+        },
+        {
+          "name": "nearby_facilities",
+          "arguments": {
+            "origin_id": "parcela:1706296435",
+            "kind": "primary_school",
+            "limit": 1,
+            "radius_m": 20000
+          }
+        },
+        {
+          "name": "rank_driving_candidates",
+          "arguments": {
+            "candidate_ids": ["facility:zabaged-47-3056199289274368"],
+            "origin_id": "parcela:1706369435"
+          }
+        },
+        {
+          "name": "rank_driving_candidates",
+          "arguments": {
+            "origin_id": "parcela:1706296435",
+            "candidate_ids": ["facility:zabaged-47-3056199289274368"]
+          }
+        }
+      ],
+      "run": "demo-validation-summary-final.json",
+      "tested_at": "2026-11-14T03:47:08.884983+00:00"
+    },
+    {
+      "id": "13-conclusion",
+      "question": "Shrň poslední porovnání pro rodinu s malými dětmi. Odděl naměřená fakta, možné kompromisy a údaje, které ještě potřebujeme zjistit.",
+      "expected": "summary",
+      "text": "### Naměřená fakta\n\n| Parcela | Celková výměra | Katastrální druh pozemku |\n| --- | ---: | --- |\n| 110/2 | 53 m² | Zastavěná plocha a nádvoří |\n| 33 | 111 m² | Zastavěná plocha a nádvoří |\n\n### Průniky s dostupnými vrstvami\n\n| Parcela | Q20 | Q100 | Aktivní záplavová zóna | Ochrana přírody |\n| --- | --- | --- | --- | --- |\n| 110/2 | nezjištěn v datech | nezjištěn v datech | nezjištěn v datech | nezjištěn v datech |\n| 33 | nezjištěn v datech | nezjištěn v datech | nezjištěn v datech | nezjištěn v datech |\n\nNezjištěný průnik je pouze výsledek kontroly načtených vrstev; není zárukou absence rizik ani jiných omezení.\n\n### Dostupnost autem\n\n| Z parcely | Cíl | Délka trasy | Modelový čas |\n| --- | --- | ---: | ---: |\n| 110/2 | Masarykova základní škola a mateřská škola v Žihli | 0,53 km | 0,8 min |\n| 33 | Masarykova základní škola a mateřská škola v Žihli | 0,67 km | 1 min |\n\nJde o nejrychlejší automobilové trasy OSRM a modelové časy bez živé dopravy. Nejde o pěší vzdálenost ani ověření bezpečnosti cesty do školy.\n\n### Rozdíly a kompromisy\n\nParcela 33 má o 58 m² větší celkovou výměru než parcela 110/2. Výměra ale není volná plocha: neříká, kolik místa zbývá pro zahradu, parkování nebo novou stavbu.\nRodina může porovnat doloženou celkovou výměru a naměřený dojezd. Z těchto ukazatelů samotných nelze určit vhodnost parcely pro bydlení ani kvalitu školy.\n\n### Co zatím nevíme\n\n- Volná a zastavěná plocha, podoba a technický stav případné stavby.\n- Přípustné využití podle územního plánu, povolení a úplná omezení konkrétního záměru.\n- Dostupnost a kapacita sítí, kapacita školy, aktuální provoz zařízení a bezpečnost pěší trasy.\n\nKatastrální druh pozemku ani orientační prostorové kontroly nepotvrzují možnost výstavby. Shrnutí používá pouze vrácené datové výběry.",
+      "artifacts": [
+        {
+          "result_id": "632e6a63382335f225cb4bb7",
+          "title": "Ověřené porovnání parcel",
+          "view": "bar",
+          "columns": [
+            {
+              "key": "name",
+              "label": "Parcela",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            },
+            {
+              "key": "area_m2",
+              "label": "Celková výměra",
+              "numeric": true,
+              "additive": true,
+              "unit": "m²"
+            },
+            {
+              "key": "land_type",
+              "label": "Katastrální druh",
+              "numeric": false,
+              "additive": false,
+              "unit": ""
+            }
+          ],
+          "rows": [
+            {
+              "id": "parcela:1706369435",
+              "kod_ku": 796891.0,
+              "cislo_parcely": "110/2",
+              "name": "110/2",
+              "area_m2": 53.0,
+              "land_type": "Zastavěná plocha a nádvoří",
+              "assessment_kind": "indicative",
+              "planning_assessment": "not_available",
+              "flood_q20": false,
+              "flood_q100": false,
+              "active_flood_zone": false,
+              "protected_area": false
+            },
+            {
+              "id": "parcela:1706296435",
+              "kod_ku": 796891.0,
+              "cislo_parcely": "33",
+              "name": "33",
+              "area_m2": 111.0,
+              "land_type": "Zastavěná plocha a nádvoří",
+              "assessment_kind": "indicative",
+              "planning_assessment": "not_available",
+              "flood_q20": false,
+              "flood_q100": false,
+              "active_flood_zone": false,
+              "protected_area": false
+            }
+          ],
+          "sources": [
+            {
+              "table_name": "ruian_parcely",
+              "data_kind": "external",
+              "row_count": 1685998,
+              "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+            },
+            {
+              "table_name": "facility_poi",
+              "data_kind": "external",
+              "row_count": 3346,
+              "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+            },
+            {
+              "name": "OSRM / OpenStreetMap",
+              "url": "https://project-osrm.org/"
+            }
+          ],
+          "note": "Celková výměra není nezastavěná plocha ani stavební povolení.",
+          "sample": false,
+          "value_key": "area_m2",
+          "label_key": "name",
+          "geometry_count": 0
+        }
+      ],
+      "layer_actions": [],
+      "status": "passed",
+      "seconds": 0.05,
+      "tool_calls": [
+        {
+          "name": "dataset_catalog",
+          "arguments": {}
+        }
+      ],
+      "run": "demo-validation-summary-final.json",
+      "tested_at": "2026-11-14T03:47:08.884983+00:00"
+    }
+  ],
+  "runs": [
+    {
+      "name": "demo-validation.json",
+      "tested_at": "2026-11-14T03:03:45.286893+00:00",
+      "outcomes": [
+        {
+          "id": "school-find",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "school-map",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "school-neighbours",
+          "status": "failed",
+          "error": "No spatial neighbour query"
+        },
+        {
+          "id": "01-population",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "02-area",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "03-cities",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "04-driving",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "05-alternatives",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "06-address",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "07-life",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "08-schools-driving",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "09-layers",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "10-hide",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "11-compare",
+          "status": "failed",
+          "error": "Client error '404 Not Found' for url 'http://localhost:8000/api/data/parcels/at-point?lat=50.044027151730226&lon=13.373415567657297'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/404"
+        },
+        {
+          "id": "12-compare-schools",
+          "status": "failed",
+          "error": "No actual routing query"
+        },
+        {
+          "id": "13-conclusion",
+          "status": "passed",
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "demo-validation-complete.json",
+      "tested_at": "2026-11-14T03:40:46.002242+00:00",
+      "outcomes": [
+        {
+          "id": "school-find",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "school-map",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "school-neighbours",
+          "status": "failed",
+          "error": "AI nevrátila použitelnou odpověď. Zkuste dotaz upřesnit."
+        },
+        {
+          "id": "01-population",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "02-area",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "03-cities",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "04-driving",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "05-alternatives",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "06-address",
+          "status": "failed",
+          "error": "No visible map geometry"
+        },
+        {
+          "id": "07-life",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "08-schools-driving",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "08b-school-route-context",
+          "status": "failed",
+          "error": "No actual walking route corridor check"
+        },
+        {
+          "id": "09-layers",
+          "status": "failed",
+          "error": "Both requested layers were not queried"
+        },
+        {
+          "id": "10-hide",
+          "status": "failed",
+          "error": "No explicit layer hide action"
+        },
+        {
+          "id": "11-compare",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "12-compare-schools",
+          "status": "failed",
+          "error": "No routed distance"
+        },
+        {
+          "id": "13-conclusion",
+          "status": "passed",
+          "error": null
+        }
+      ]
+    },
+    {
+      "name": "demo-validation-confirmed.json",
+      "tested_at": "2026-11-14T03:44:18.205679+00:00",
+      "outcomes": [
+        {
+          "id": "school-find",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "school-map",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "school-neighbours",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "06-address",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "08b-school-route-context",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "09-layers",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "10-hide",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "11-compare",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "12-compare-schools",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "13-conclusion",
+          "status": "failed",
+          "error": "Decision summary must use verified comparison references"
+        }
+      ]
+    },
+    {
+      "name": "demo-validation-summary-final.json",
+      "tested_at": "2026-11-14T03:47:08.884983+00:00",
+      "outcomes": [
+        {
+          "id": "11-compare",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "12-compare-schools",
+          "status": "passed",
+          "error": null
+        },
+        {
+          "id": "13-conclusion",
+          "status": "passed",
+          "error": null
+        }
+      ]
+    }
+  ],
+  "datasets": [
+    {
+      "table_name": "aopk_chranena_uzemi",
+      "data_kind": "external",
+      "row_count": 935,
+      "loaded_at": "2026-11-14T02:05:18.375786+00:00"
+    },
+    {
+      "table_name": "chmu_stanice_voda",
+      "data_kind": "external",
+      "row_count": 79,
+      "loaded_at": "2026-11-14T02:17:15.478297+00:00"
+    },
+    {
+      "table_name": "ciselnik_druh_pozemku",
+      "data_kind": "reference",
+      "row_count": 4,
+      "loaded_at": "2026-11-14T03:10:48.175193+00:00"
+    },
+    {
+      "table_name": "ciselnik_kategorie_ochrany",
+      "data_kind": "reference",
+      "row_count": 5,
+      "loaded_at": "2026-11-14T03:10:48.203093+00:00"
+    },
+    {
+      "table_name": "ciselnik_povodnove_riziko",
+      "data_kind": "reference",
+      "row_count": 4,
+      "loaded_at": "2026-11-14T03:10:48.197666+00:00"
+    },
+    {
+      "table_name": "csu_demografie_obce",
+      "data_kind": "external",
+      "row_count": 501,
+      "loaded_at": "2026-11-14T02:04:51.181513+00:00"
+    },
+    {
+      "table_name": "facility_poi",
+      "data_kind": "external",
+      "row_count": 3346,
+      "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+    },
+    {
+      "table_name": "kraje",
+      "data_kind": "reference",
+      "row_count": 1,
+      "loaded_at": "2026-11-14T03:01:49.106610+00:00"
+    },
+    {
+      "table_name": "municipality_status",
+      "data_kind": "external",
+      "row_count": 501,
+      "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+    },
+    {
+      "table_name": "okresy",
+      "data_kind": "reference",
+      "row_count": 7,
+      "loaded_at": "2026-11-14T03:01:49.106610+00:00"
+    },
+    {
+      "table_name": "osm_poi",
+      "data_kind": "external",
+      "row_count": 4849,
+      "loaded_at": "2026-11-14T03:00:52.588404+00:00"
+    },
+    {
+      "table_name": "osm_route_features",
+      "data_kind": "external",
+      "row_count": 145806,
+      "loaded_at": "2026-11-14T03:36:47.894767+00:00"
+    },
+    {
+      "table_name": "ruian_ku",
+      "data_kind": "external",
+      "row_count": 1395,
+      "loaded_at": "2026-11-14T02:04:17.823041+00:00"
+    },
+    {
+      "table_name": "ruian_obce",
+      "data_kind": "external",
+      "row_count": 501,
+      "loaded_at": "2026-11-14T02:04:17.823041+00:00"
+    },
+    {
+      "table_name": "ruian_parcely",
+      "data_kind": "external",
+      "row_count": 1685998,
+      "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+    },
+    {
+      "table_name": "vuv_zaplavova_uzemi",
+      "data_kind": "external",
+      "row_count": 633,
+      "loaded_at": "2026-11-14T02:04:51.395485+00:00"
+    },
+    {
+      "table_name": "zabaged_silnice",
+      "data_kind": "external",
+      "row_count": 14081,
+      "loaded_at": "2026-11-14T02:05:26.664896+00:00"
+    },
+    {
+      "table_name": "zabaged_vodni_toky",
+      "data_kind": "external",
+      "row_count": 75832,
+      "loaded_at": "2026-11-14T02:05:26.664896+00:00"
+    }
+  ],
+  "parcel_coverage_gaps": ["692484", "719293"],
+  "automated_checks": {
+    "api": 55,
+    "etl": 16,
+    "mcp": 2,
+    "browser": 17,
+    "frontend_build": "passed",
+    "nginx_smoke": "passed"
+  }
+}
