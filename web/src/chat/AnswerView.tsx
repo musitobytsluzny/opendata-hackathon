@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '../components/Icon'
 import { formatValue, okresName, type Answer } from './assistant'
 import { Markdown } from './Markdown'
@@ -21,6 +21,27 @@ export function AnswerView({
   onShow?: () => void
   onAsk?: (question: string) => void
 }) {
+  const [sort, setSort] = useState<{ key: 'name' | 'value'; descending: boolean }>({
+    key: 'value',
+    descending: true,
+  })
+  const rows = useMemo(
+    () =>
+      (answer.rows ?? []).toSorted((a, b) => {
+        const result =
+          sort.key === 'name'
+            ? okresName(a.okres).localeCompare(okresName(b.okres), 'cs')
+            : a.value - b.value
+        return (sort.descending ? -1 : 1) * result
+      }),
+    [answer.rows, sort],
+  )
+  function changeSort(key: 'name' | 'value') {
+    setSort((previous) => ({
+      key,
+      descending: previous.key === key ? !previous.descending : key === 'value',
+    }))
+  }
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState(false)
   const copyTimer = useRef<number | undefined>(undefined)
@@ -60,7 +81,7 @@ export function AnswerView({
     link.click()
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
-  const max = Math.max(1, ...(answer.rows ?? []).map((r) => Math.abs(r.value)))
+  const max = Math.max(Number.EPSILON, ...(answer.rows ?? []).map((r) => Math.abs(r.value)))
   return (
     <div className="answer">
       <div className="answer__author">
@@ -70,66 +91,102 @@ export function AnswerView({
       {answer.rows && (
         <figure className="answer__data">
           <figcaption>{answer.metric}</figcaption>
-          <table className="tabular">
-            <caption className="sr-only">
-              {answer.metric}. Kliknutím na okres na něj přiblížíte mapu.
-            </caption>
-            <thead className="sr-only">
-              <tr>
-                <th scope="col">Okres</th>
-                <th scope="col">Poměr</th>
-                <th scope="col">Hodnota</th>
-              </tr>
-            </thead>
-            <tbody>
-              {answer.rows.map((r) => (
-                <tr
-                  key={r.okres}
-                  className={
-                    [
-                      hovered === r.okres ? 'is-hovered' : '',
-                      focused === r.okres ? 'is-focused' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ') || undefined
-                  }
-                  onMouseEnter={() => onHover(r.okres)}
-                  onMouseLeave={() => onHover(null)}
-                  onClick={() => onFocusOkres(r.okres)}
-                >
-                  <th scope="row">
+          <div className="answer__table-wrap">
+            <table className="tabular">
+              <caption className="sr-only">
+                {answer.metric}. Kliknutím na okres na něj přiblížíte mapu.
+              </caption>
+              <thead>
+                <tr>
+                  <th
+                    scope="col"
+                    aria-sort={
+                      sort.key === 'name' ? (sort.descending ? 'descending' : 'ascending') : 'none'
+                    }
+                  >
                     <button
                       type="button"
-                      className="okres-btn"
-                      aria-pressed={focused === r.okres}
-                      aria-label={
-                        focused === r.okres
-                          ? `${okresName(r.okres)}, ${formatValue(r.value, answer.unit, answer.signed)}. Zpět na celý kraj`
-                          : `${okresName(r.okres)}, ${formatValue(r.value, answer.unit, answer.signed)}. Přiblížit mapu na okres`
-                      }
-                      onFocus={() => onHover(r.okres)}
-                      onBlur={() => onHover(null)}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onFocusOkres(r.okres)
-                      }}
+                      aria-label="Seřadit podle okresu"
+                      onClick={() => changeSort('name')}
                     >
-                      {okresName(r.okres)}
+                      Okres{' '}
+                      {sort.key === 'name' && (
+                        <Icon name={sort.descending ? 'chevronDown' : 'chevronUp'} size={12} />
+                      )}
                     </button>
                   </th>
-                  <td className="answer__bar" aria-hidden="true">
-                    <span
-                      className={r.value < 0 ? 'bar bar--neg' : 'bar'}
-                      style={{ width: `${(Math.abs(r.value) / max) * 100}%` }}
-                    />
-                  </td>
-                  <td className="answer__val">
-                    {formatValue(r.value, answer.unit, answer.signed)}
-                  </td>
+                  <th scope="col">
+                    <span className="sr-only">Poměr</span>
+                  </th>
+                  <th
+                    scope="col"
+                    aria-sort={
+                      sort.key === 'value' ? (sort.descending ? 'descending' : 'ascending') : 'none'
+                    }
+                  >
+                    <button
+                      type="button"
+                      aria-label="Seřadit podle hodnoty"
+                      onClick={() => changeSort('value')}
+                    >
+                      Hodnota{' '}
+                      {sort.key === 'value' && (
+                        <Icon name={sort.descending ? 'chevronDown' : 'chevronUp'} size={12} />
+                      )}
+                    </button>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr
+                    key={r.okres}
+                    className={
+                      [
+                        hovered === r.okres ? 'is-hovered' : '',
+                        focused === r.okres ? 'is-focused' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ') || undefined
+                    }
+                    onMouseEnter={() => onHover(r.okres)}
+                    onMouseLeave={() => onHover(null)}
+                    onClick={() => onFocusOkres(r.okres)}
+                  >
+                    <th scope="row">
+                      <button
+                        type="button"
+                        className="okres-btn"
+                        aria-pressed={focused === r.okres}
+                        aria-label={
+                          focused === r.okres
+                            ? `${okresName(r.okres)}, ${formatValue(r.value, answer.unit, answer.signed)}. Zpět na celý kraj`
+                            : `${okresName(r.okres)}, ${formatValue(r.value, answer.unit, answer.signed)}. Přiblížit mapu na okres`
+                        }
+                        onFocus={() => onHover(r.okres)}
+                        onBlur={() => onHover(null)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onFocusOkres(r.okres)
+                        }}
+                      >
+                        {okresName(r.okres)}
+                      </button>
+                    </th>
+                    <td className="answer__bar" aria-hidden="true">
+                      <span
+                        className={r.value < 0 ? 'bar bar--neg' : 'bar'}
+                        style={{ width: `${(Math.abs(r.value) / max) * 100}%` }}
+                      />
+                    </td>
+                    <td className="answer__val">
+                      {formatValue(r.value, answer.unit, answer.signed)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </figure>
       )}
       {answer.source && (

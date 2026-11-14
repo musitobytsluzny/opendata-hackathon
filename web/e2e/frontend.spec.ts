@@ -1,41 +1,6 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
-const answer = {
-  text: '## Dostupné obce\n\n**Plzeň-město**: 181 200 obyvatel.\n\n| Okres | Počet |\n| --- | ---: |\n| Plzeň-město | 181 200 |\n\n[Odkaz](https://example.com)\n\n[Chybný odkaz](javascript:alert(1))\n\n<img src="https://example.com/tracker" onerror="alert(1)">\n\n<script>alert(1)</script>',
-  metric: 'Počet obyvatel dostupných obcí',
-  unit: '',
-  sample: true,
-  rows: [{ okres: 'CZ0323000000', value: 181200 }],
-  source: { publisher: 'Syntetická demo data ETL', name: '1 obec', period: '2024' },
-}
-
-async function authenticate(page: Page) {
-  await page.route('**/api/auth/me', (route) =>
-    route.fulfill({ json: { id: 123, username: 'ui-test' } }),
-  )
-  await page.route('**/api/data/catalog', (route) =>
-    route.fulfill({ json: { datasets: [{ row_count: 3, data_kind: 'demo' }] } }),
-  )
-  await page.addInitScript(() => {
-    const encode = (value: object) =>
-      btoa(JSON.stringify(value)).replaceAll('=', '').replaceAll('+', '-').replaceAll('/', '_')
-    // API responses are intercepted; this fixture grants no access to a real server.
-    localStorage.setItem(
-      'auth_token',
-      encode({ alg: 'none' }) +
-        '.' +
-        encode({
-          sub: '123',
-          username: 'ui-test',
-          iat: Math.floor(Date.now() / 1000),
-          exp: Math.floor(Date.now() / 1000) + 3600,
-        }) +
-        '.fixture',
-    )
-  })
-  await page.goto('/mapa')
-  await expect(page.locator('.panel__status')).toHaveText('Ukázková data')
-}
+import { answer, authenticate } from './fixtures'
 
 test.beforeEach(async ({ page }) => {
   // Geometry and chat must remain usable independently of external imagery.
@@ -92,7 +57,8 @@ test('chat width supports drag, keyboard and persistence; settings fit mobile', 
   const box = (await handle.boundingBox())!
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.mouse.down()
-  await page.mouse.move(box.x + box.width / 2 + 320, box.y + box.height / 2, { steps: 12 })
+  const delta = 650 - (await page.locator('.panel').boundingBox())!.width
+  await page.mouse.move(box.x + box.width / 2 + delta, box.y + box.height / 2, { steps: 12 })
   await page.mouse.up()
   await expect(handle).toHaveAttribute('aria-valuenow', '650')
   await expect

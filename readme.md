@@ -56,6 +56,17 @@ Odpovědi podporují Markdown a tabulky, kopírování, CSV export i navazujíc�
 Enter odešle dotaz, Shift+Enter vloží nový řádek. Tlačítko zastavení ukončí čekání
 v prohlížeči; již spuštěné zpracování na serveru může doběhnout.
 
+Chat lze sbalit tlačítkem minimalizace nebo klávesou Esc; plovoucí vstup otevře
+klávesa `/`. Na mobilu lze tažením horního úchytu měnit výšku konverzace.
+Historie (`Ctrl/⌘ K`) podporuje hledání i ve zprávách, vlastní názvy, připnutí,
+export Markdownu a vrácení smazané konverzace. Rozepsané dotazy a vybraná
+konverzace se ukládají pro každý účet v tomto prohlížeči.
+
+Úprava staršího dotazu vytvoří novou konverzaci s kontextem před tímto dotazem;
+původní zůstane zachovaná. Při čtení starších zpráv nová odpověď neposouvá chat:
+k nejnovější se vrátíte tlačítkem. Tabulky lze řadit podle okresu nebo hodnoty.
+Legenda mapy ukazuje rozsah a pokrytí; chybějící údaje odlišuje od nuly.
+
 Šířku chatu lze měnit tažením pravého okraje, šipkami po jeho zaměření nebo tlačítkem
 rozšíření. Home/End nastaví minimální/maximální šířku. Nastavení se ukládá v prohlížeči:
 ztmavení států mimo ČR, intenzita, názvy měst, hodnoty, mapový podklad, automatické

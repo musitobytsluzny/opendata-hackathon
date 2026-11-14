@@ -11,6 +11,8 @@ export const DEFAULT_PREFERENCES = {
   basemap: 'satellite' as 'satellite' | 'ortho',
   textSize: 'normal' as 'normal' | 'large',
   panelWidth: 330,
+  panelCollapsed: false,
+  showLegend: true,
 }
 export type Preferences = typeof DEFAULT_PREFERENCES
 const STORAGE_KEY = 'kartogram:preferences:v1'

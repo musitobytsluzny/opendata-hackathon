@@ -13,6 +13,7 @@ const toggles = [
   ['dimOutside', 'Ztmavit okolní státy'],
   ['showTowns', 'Názvy měst'],
   ['showLabels', 'Hodnoty na mapě'],
+  ['showLegend', 'Legenda a pokrytí dat'],
   ['autoFocus', 'Po odpovědi vycentrovat mapu'],
   ['autoScroll', 'Posouvat chat k nové odpovědi'],
   ['reducedMotion', 'Omezit animace'],

@@ -216,6 +216,12 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
       refreshExpiredTiles: false,
     })
     map.current = m
+    let resizeFrame = 0
+    const resizeObserver = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeFrame)
+      resizeFrame = requestAnimationFrame(() => m.resize())
+    })
+    resizeObserver.observe(container.current)
     m.touchZoomRotate?.disableRotation()
     m.getCanvas().setAttribute('aria-label', labelRef.current)
     m.getCanvas().setAttribute('role', 'img')
@@ -335,6 +341,8 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
 
     return () => {
       setReady(false)
+      resizeObserver.disconnect()
+      cancelAnimationFrame(resizeFrame)
       m.remove()
       map.current = null
     }
