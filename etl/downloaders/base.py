@@ -56,7 +56,9 @@ def download_file(
     return output_path
 
 
-def download_json(url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+def download_json(
+    url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 90
+) -> Dict[str, Any]:
     """Fetch JSON directly from an API endpoint."""
     req = urllib.request.Request(
         url,
@@ -66,7 +68,7 @@ def download_json(url: str, headers: Optional[Dict[str, str]] = None) -> Dict[st
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=90) as response:
+    with urllib.request.urlopen(req, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -81,3 +83,24 @@ def unzip_file(zip_path: Path, extract_to: Optional[Path] = None) -> Path:
                 raise ValueError("Archive contains a path outside the extraction directory")
         zip_ref.extractall(target_dir)
     return target_dir
+
+
+def download_json_file(url: str, path: Path, force_download=False):
+    """Reject corrupt cache entries and retry bounded transient download failures."""
+    import time
+    from urllib.error import URLError
+
+    for attempt in range(3):
+        try:
+            download_file(url, path, force_download=force_download or attempt > 0)
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+            if isinstance(data, dict) and "error" in data:
+                path.unlink(missing_ok=True)
+                raise ValueError(f"Source rejected export: {data['error']}")
+            return data
+        except (json.JSONDecodeError, UnicodeError, URLError, TimeoutError):
+            path.unlink(missing_ok=True)
+            if attempt == 2:
+                raise
+            logger.warning("Retrying invalid or unavailable JSON export: %s", path)
+            time.sleep(attempt + 1)

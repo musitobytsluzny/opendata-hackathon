@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
 -- ====================================================================
 -- OpenData Geo MCP - Hybrid Relational + Spatial Database Schema
 -- Architecture: "Spatial-First, Relational-Enriched" (WGS84 EPSG:4326)
@@ -90,11 +92,12 @@ CREATE INDEX IF NOT EXISTS idx_ruian_parcely_druh ON ruian_parcely (druh_pozemku
 
 CREATE TABLE IF NOT EXISTS vuv_zaplavova_uzemi (
     id SERIAL PRIMARY KEY,
-    q_stupen VARCHAR(20) NOT NULL REFERENCES ciselnik_povodnove_riziko(kod),
+    q_stupen VARCHAR(20) REFERENCES ciselnik_povodnove_riziko(kod),
     aktivni_zona BOOLEAN DEFAULT FALSE,
     tok_nazev VARCHAR(255),
     geom GEOMETRY(MultiPolygon, 4326) NOT NULL
 );
+ALTER TABLE vuv_zaplavova_uzemi ALTER COLUMN q_stupen DROP NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_vuv_zaplavova_uzemi_geom ON vuv_zaplavova_uzemi USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_vuv_zaplavova_uzemi_q ON vuv_zaplavova_uzemi (q_stupen, aktivni_zona);
 

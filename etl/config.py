@@ -18,7 +18,7 @@ DATABASE_URL = make_url(os.environ["DATABASE_URL"]).set(drivername="postgresql+p
 TARGET_CRS = "EPSG:4326"
 CZECH_NATIONAL_CRS = "EPSG:5514"
 PILOT_BBOX = {
-    "plzen_kraj": (12.45, 48.95, 13.95, 50.15),
+    "plzen_kraj": (12.35, 48.85, 13.95, 50.20),
     "plzen_mesto": (13.25, 49.65, 13.55, 49.85),
 }
 DEFAULT_BBOX = PILOT_BBOX["plzen_kraj"]
