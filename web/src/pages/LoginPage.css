@@ -13,7 +13,7 @@
 
 .auth__stage {
   position: absolute;
-  inset: 0 clamp(380px, 36vw, 560px) 0 0;
+  inset: 0;
 }
 
 .auth__stage .maplibregl-ctrl-attrib {
@@ -28,7 +28,14 @@
 .auth__vignette {
   position: absolute;
   inset: 0;
-  background: var(--vignette);
+  background:
+    linear-gradient(
+      90deg,
+      rgba(13, 18, 14, 0.24),
+      rgba(13, 18, 14, 0.08) 55%,
+      rgba(13, 18, 14, 0.4)
+    ),
+    var(--vignette);
   pointer-events: none;
 }
 
@@ -315,8 +322,7 @@
   }
 
   .auth__stage {
-    inset: 0 0 auto 0;
-    height: 62vh;
+    inset: 0;
   }
 
   .auth__statement {

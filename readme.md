@@ -33,7 +33,9 @@ make down   # zachová DB data
 
 Kontroly běží v Dockeru bez potřeby lokálních instalací linterů. `make smoke`
 vyžaduje Python 3 na hostiteli. CI spouští stejné kontroly a integrační smoke test.
-Při změně závislostí webu spusť `docker compose exec web npm ci` a restartuj web.
+Při startu webu se podle otisku `package.json` a `package-lock.json` automaticky
+synchronizují závislosti v Docker volume. Po jejich změně stačí
+`docker compose restart web`.
 
 Python používá Ruff (`pyproject.toml`, `requirements-dev.txt`), web Oxlint
 (`web/.oxlintrc.json`) a textové soubory Prettier (`.prettierrc.json`).
