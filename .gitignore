@@ -45,3 +45,7 @@ logs/
 Thumbs.db
 *.swp
 *.swo
+
+# Browser test output.
+playwright-report/
+test-results/

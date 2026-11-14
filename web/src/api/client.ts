@@ -47,7 +47,7 @@ export async function apiFetch<T>(path: string, options: ApiRequest = {}): Promi
                   `${error.loc?.slice(1).join('.') ?? ''}: ${error.msg ?? 'Neplatná hodnota'}`,
               )
               .join('; ')
-          : `Požadavek selhal (${res.status}). Zkuste to znovu.`
+          : 'Služba teď neodpovídá. Zkuste to prosím za chvíli.'
     throw new ApiError(res.status, message)
   }
 

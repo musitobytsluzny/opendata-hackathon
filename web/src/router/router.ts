@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 
 export const routes = {
   landing: '/',
@@ -19,7 +19,7 @@ export function navigate(path: string, replace = false) {
 export function usePath(): string {
   const [path, setPath] = useState(() => window.location.pathname)
   useEffect(() => {
-    const update = () => setPath(window.location.pathname)
+    const update = () => startTransition(() => setPath(window.location.pathname))
     window.addEventListener('popstate', update)
     window.addEventListener(NAVIGATE_EVENT, update)
     return () => {

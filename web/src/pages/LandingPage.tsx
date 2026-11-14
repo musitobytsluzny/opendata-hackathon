@@ -1,58 +1,19 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Icon } from '../components/Icon'
-import {
-  PENDING_QUESTION_KEY,
-  SAMPLES,
-  formatValue,
-  normalize,
-  type Answer,
-} from '../chat/assistant'
+import { PENDING_QUESTION_KEY, formatValue, normalize, type Answer } from '../chat/assistant'
+import { SAMPLES } from '../chat/samples'
 import { MiniKraj } from '../map/MiniKraj'
 import { RegionMap } from '../map/LazyRegionMap'
+import type { OkresId } from '../map/geo'
 import { navigate, routes } from '../router/router'
 import { Link } from '../router/Link'
 import { useAuth } from '../auth/AuthContext'
 import './LandingPage.css'
 
-const DEMOS: { q: string; a: Answer }[] = [
-  {
-    q: 'Kde v kraji přibylo nejvíc obyvatel?',
-    a: {
-      text: 'Nejrychleji roste Plzeň-sever, hlavně obce kolem Plzně.',
-      unit: '%',
-      signed: true,
-      metric: 'Změna počtu obyvatel 2014–2024',
-      rows: [
-        { okres: 'CZ0325000000', value: 9.8 },
-        { okres: 'CZ0324000000', value: 6.1 },
-        { okres: 'CZ0326000000', value: 4.3 },
-        { okres: 'CZ0323000000', value: 3.2 },
-        { okres: 'CZ0321000000', value: 0.4 },
-        { okres: 'CZ0327000000', value: -0.9 },
-        { okres: 'CZ0322000000', value: -1.6 },
-      ],
-      sample: true,
-    },
-  },
-  {
-    q: 'Kde je nejvyšší nezaměstnanost?',
-    a: {
-      text: 'Nejvíc lidí bez práce hledá na Tachovsku, nejméně v okrese Plzeň-sever.',
-      unit: '%',
-      metric: 'Podíl nezaměstnaných osob',
-      rows: [
-        { okres: 'CZ0327000000', value: 4.1 },
-        { okres: 'CZ0321000000', value: 3.4 },
-        { okres: 'CZ0322000000', value: 3.1 },
-        { okres: 'CZ0323000000', value: 2.9 },
-        { okres: 'CZ0326000000', value: 2.6 },
-        { okres: 'CZ0324000000', value: 2.2 },
-        { okres: 'CZ0325000000', value: 1.9 },
-      ],
-      sample: true,
-    },
-  },
-]
+const DEMOS: { q: string; a: Answer }[] = SAMPLES.slice(0, 2).map(({ question, answer }) => ({
+  q: question,
+  a: answer,
+}))
 
 const SAMPLE_CARDS = SAMPLES.map((sample) => ({
   ...sample,
@@ -95,6 +56,7 @@ export function LandingPage() {
   const { user } = useAuth()
   const { demo, typed, phase } = useDemo()
   const [question, setQuestion] = useState('')
+  const [hovered, setHovered] = useState<OkresId | null>(null)
 
   const shown = phase === 'answer' ? demo.a : null
   const values = useMemo(() => (shown?.rows ? normalize(shown.rows) : null), [shown])
@@ -153,13 +115,16 @@ export function LandingPage() {
             labels={labels}
             padding={heroPadding}
             drift
+            hoverable
+            hovered={hovered}
+            onHover={setHovered}
             showTowns={!narrow}
           />
         </div>
         <div className="hero__vignette" aria-hidden="true" />
 
         <header className="hero__nav">
-          <span className="hero__brand">Ptej se kraje</span>
+          <span className="hero__brand">Kartogram</span>
           <nav className="hero__links">
             <Link href={user ? routes.map : routes.login}>
               {user ? 'Otevřít mapu' : 'Přihlásit se'}
@@ -244,8 +209,8 @@ export function LandingPage() {
           <li>
             <h3>Zeptáte se</h3>
             <p>
-              Jak byste se zeptali souseda: „Kolik je v okolí školek?“ Žádná znalost datových
-              portálů.
+              Jak byste se zeptali souseda: „Kolik obyvatel mají dostupné obce?“ Žádná znalost
+              datových portálů.
             </p>
           </li>
           <li>
@@ -314,7 +279,7 @@ export function LandingPage() {
             id="close-input"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Třeba: Kde v kraji staví nejvíc bytů?"
+            placeholder="Třeba: Kde mají dostupné obce nejvíc zeleně?"
             autoComplete="off"
           />
           <button type="submit" aria-label="Položit dotaz">
@@ -325,7 +290,7 @@ export function LandingPage() {
       </section>
 
       <footer className="foot">
-        <span>Ptej se kraje</span>
+        <span>Kartogram</span>
         <span>Hackathonový projekt nad otevřenými daty Plzeňského kraje</span>
       </footer>
     </div>
