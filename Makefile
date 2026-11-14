@@ -1,6 +1,6 @@
 COMPOSE = docker compose --env-file .env -f infra/compose.dev.yml
 
-.PHONY: setup up down logs ps build seed config lint format check smoke test-api test-etl test-mcp check-gemini
+.PHONY: setup up down logs ps build seed config lint format check smoke test-api test-etl test-mcp check-gemini import-data
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -23,6 +23,9 @@ build: setup
 seed: setup
 	$(COMPOSE) up -d --build --wait db api-init
 	$(COMPOSE) run --rm --build --no-deps etl python -m etl.main --seed
+
+import-data: setup
+	$(COMPOSE) run --rm --no-deps etl python -m etl.main --all --keep-going
 
 config: setup
 	$(COMPOSE) config --quiet

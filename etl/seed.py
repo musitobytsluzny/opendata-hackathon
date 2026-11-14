@@ -160,12 +160,12 @@ def seed_administrative_hierarchy():
     # Okresy
     okresy_data = [
         {"kod_okresu": "3401", "kod_kraje": "43", "nazev": "Domažlice"},
-        {"kod_okresu": "3402", "kod_kraje": "43", "nazev": "Klatovy"},
-        {"kod_okresu": "3403", "kod_kraje": "43", "nazev": "Plzeň-jih"},
-        {"kod_okresu": "3404", "kod_kraje": "43", "nazev": "Plzeň-sever"},
+        {"kod_okresu": "3404", "kod_kraje": "43", "nazev": "Klatovy"},
+        {"kod_okresu": "3406", "kod_kraje": "43", "nazev": "Plzeň-jih"},
+        {"kod_okresu": "3407", "kod_kraje": "43", "nazev": "Plzeň-sever"},
         {"kod_okresu": "3405", "kod_kraje": "43", "nazev": "Plzeň-město"},
-        {"kod_okresu": "3406", "kod_kraje": "43", "nazev": "Rokycany"},
-        {"kod_okresu": "3407", "kod_kraje": "43", "nazev": "Tachov"},
+        {"kod_okresu": "3408", "kod_kraje": "43", "nazev": "Rokycany"},
+        {"kod_okresu": "3410", "kod_kraje": "43", "nazev": "Tachov"},
     ]
     save_dataframe(pd.DataFrame(okresy_data), "okresy")
 
@@ -195,7 +195,7 @@ def seed_ruian_obce():
         },
         {
             "kod_obce": 555771,
-            "kod_okresu": "3402",
+            "kod_okresu": "3404",
             "nazev": "Klatovy",
             "okres": "Klatovy",
             "geom": MultiPolygon(
@@ -214,7 +214,7 @@ def seed_ruian_obce():
         },
         {
             "kod_obce": 559717,
-            "kod_okresu": "3406",
+            "kod_okresu": "3408",
             "nazev": "Rokycany",
             "okres": "Rokycany",
             "geom": MultiPolygon(

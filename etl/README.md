@@ -37,16 +37,42 @@ externí import se nikdy automaticky nenahrazuje vymyšlenými hodnotami.
 `--reset` je destruktivní, explicitní volba pouze pro ETL tabulky; při běžném
 startu, seedu ani `--all` se nespouští. Nemění `users`, `profiles` ani Alembic.
 
+## Kompletní regionální pipeline
+
+```sh
+docker compose run --rm --no-deps etl python -m etl.main --all --keep-going
+```
+
+`--keep-going` potvrdí každou vrstvu samostatně a pokračuje i po chybě jiného
+zdroje. `etl/data/pipeline-report.json` zaznamenává výsledek každé vrstvy;
+jakákoliv chyba stále znamená nenulový návratový kód. Bez tohoto přepínače
+zůstává `--all` atomické. Schéma se při běžném importu připraví krátkou
+samostatnou transakcí, aby dlouhé stahování neblokovalo čtení API.
+
 ## Rozsah importérů
 
-- RÚIAN: obce a dostupná katastrální území. Skutečný zdroj parcel zatím chybí;
-  parcely se při reálném importu nesyntetizují.
-- AOPK, OSM a VÚV: importéry zdrojových vrstev; nesoulad CRS/schématu nebo FK
-  způsobí rollback. Konkrétní dostupnost vzdálených služeb není garantovaná.
-- ČSÚ: vyžaduje normalizovaná pole `kod_obce`, `rok`, `pocet_obyvatel`; mapping
-  konkrétního externího CSV se musí doplnit, jinak import bezpečně selže.
-- ZABAGED: lokální `etl/data/raw/zabaged.gpkg` s vrstvami SilnicniSit a VodniTok.
-- ČHMÚ a Sentinel: schéma a syntetické ukázky; živé importéry nejsou implementované.
+- RÚIAN: všech 501 obcí a jejich katastrální území v Plzeňském kraji z oficiálního
+  ArcGIS ČÚZK. Používá skutečné kódy sedmi okresů, nikoliv pořadová čísla.
+- Parcely (`--dataset parcels`): kompletní export každého načteného katastrálního
+  území z ČÚZK, nejvýše čtyři souběžné downloady. Počet prvků se porovnává
+  se zdrojovou službou; překročení limitu nebo neúplný export způsobí chybu.
+- ČSÚ: roční MOS 2025, obyvatelé k 31. 12., děti 0–14 a senioři 65+;
+  kontroluje pokrytí všech načtených obcí. Chybějící hodnoty se nenahrazují nulou.
+  Pětiletý přírůstek je bez srovnávacího roku NULL.
+- VÚV: Q5, Q20, Q100, Q500 a aktivní záplavové zóny z oficiální služby ISVS voda.
+  Aktivní zóna má samostatný příznak a nepřiřazuje se jí odhadnutá periodicita.
+- AOPK: maloplošná i velkoplošná chráněná území, ochranná pásma a smluvní ochrana.
+- ZABAGED: automatické stažení silnic, neevidovaných silnic, staveb a vodních toků
+  z oficiálního ArcGIS ČÚZK; lokální GeoPackage již není podmínkou.
+- OSM: zdravotnictví, školy, doprava a obchody z Overpass API.
+- ČHMÚ: nejnovější dostupný katalog vodoměrných stanic. Aktuální SPA je NULL,
+  protože samotný katalog neobsahuje aktuální stav vody.
+- Sentinel: zatím pouze schéma, reálný výpočet NDVI není součástí pipeline.
+
+Hranice obcí a parcel vymezují celý kraj. Prostorové vrstvy infrastruktury,
+POI a ochrany se stahují v obálce 12.35–13.95° E, 48.85–50.20° N, která kraj
+pokrývá s přesahem. Nejde o celorepublikové pokrytí. ArcGIS stránkování ověřuje
+počty a cache rozlišuje službu i dotaz, takže změna rozsahu nepoužije stará data.
 
 Chybějící CRS se nehádá; zdroj musí dodat CRS nebo ho importér explicitně určí.
 Zápisy probíhají do existujících tabulek s omezeními a indexy; `replace` je zakázané.

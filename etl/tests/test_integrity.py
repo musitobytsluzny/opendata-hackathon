@@ -1,9 +1,7 @@
 """ETL integration tests in disposable schemas; no external downloads."""
 
-import tempfile
 import unittest
 import uuid
-from pathlib import Path
 from unittest.mock import patch
 
 import geopandas as gpd
@@ -21,23 +19,18 @@ class IntegrityTests(unittest.TestCase):
         frame = gpd.GeoDataFrame(
             [
                 {
-                    "PERIODICIT": 100,
-                    "NAZEV_TOKU": "Fixture river",
+                    "NAZ_TOK": "Fixture river",
                     "geometry": Polygon([(13, 49), (14, 49), (14, 50), (13, 49)]),
                 }
             ],
             geometry="geometry",
             crs=4326,
         )
-        with tempfile.TemporaryDirectory() as directory:
-            shape = Path(directory) / "fixture.shp"
-            shape.touch()
-            with (
-                patch("etl.downloaders.vuv.download_file"),
-                patch("etl.downloaders.vuv.unzip_file", return_value=Path(directory)),
-                patch("etl.downloaders.vuv.gpd.read_file", return_value=frame),
-            ):
-                self.assertEqual(fetch_and_load_vuv(), 1)
+        empty = gpd.GeoDataFrame(geometry=[], crs=4326)
+        with patch(
+            "etl.downloaders.vuv.fetch_layer", side_effect=[empty, empty, frame, empty, empty]
+        ):
+            self.assertEqual(fetch_and_load_vuv(), 1)
         with self.engine.connect() as connection:
             row = connection.execute(
                 text("SELECT q_stupen, aktivni_zona, GeometryType(geom) FROM vuv_zaplavova_uzemi")

@@ -282,16 +282,10 @@ def ensure_cadastral_area_and_municipality(connection, kod_ku: int) -> int | Non
         return None
 
     kod_obce = ku_data.get("kod_obce")
-    if kod_obce:
-        obec_data = fetch_municipality_by_code(kod_obce)
-        nazev_obce = obec_data.get("nazev", f"Obec {kod_obce}") if obec_data else f"Obec {kod_obce}"
-        connection.execute(
-            text(
-                "INSERT INTO ruian_obce (kod_obce, nazev) VALUES (:o, :n) "
-                "ON CONFLICT (kod_obce) DO NOTHING"
-            ),
-            {"o": kod_obce, "n": nazev_obce},
-        )
+    if kod_obce is None or not connection.scalar(
+        text("SELECT 1 FROM ruian_obce WHERE kod_obce=:code"), {"code": kod_obce}
+    ):
+        return None
 
     connection.execute(
         text(
@@ -327,6 +321,8 @@ def save_parcel_to_db(connection, parcel_feat: dict) -> bool:
 
     # Ensure KU and Obec records exist in database
     kod_obce = ensure_cadastral_area_and_municipality(connection, kod_ku)
+    if kod_obce is None:
+        return False
 
     query = text("""
         INSERT INTO ruian_parcely (id, kod_ku, cislo_parcely, druh_pozemku_id, vymera_m2, geom, kod_obce)

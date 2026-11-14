@@ -25,13 +25,13 @@ def build_overpass_query(bbox: tuple) -> str:
     query = f"""
     [out:json][timeout:90];
     (
-      node["amenity"~"hospital|clinic|doctors|pharmacy"]({bbox_str});
-      node["amenity"~"school|kindergarten"]({bbox_str});
-      node["highway"~"bus_stop"]({bbox_str});
-      node["railway"~"station|halt"]({bbox_str});
-      node["shop"~"supermarket|convenience"]({bbox_str});
+      nwr["amenity"~"hospital|clinic|doctors|pharmacy"]({bbox_str});
+      nwr["amenity"~"school|kindergarten"]({bbox_str});
+      nwr["highway"~"bus_stop"]({bbox_str});
+      nwr["railway"~"station|halt"]({bbox_str});
+      nwr["shop"~"supermarket|convenience"]({bbox_str});
     );
-    out body;
+    out center body;
     """
     return query.strip()
 
@@ -54,20 +54,31 @@ def fetch_and_load_osm(bbox: tuple = DEFAULT_BBOX, force_download: bool = False)
     if data is None:
         query = build_overpass_query(bbox)
         encoded_query = urllib.parse.urlencode({"data": query})
-        full_url = f"{OVERPASS_API_URL}?{encoded_query}"
+        endpoints = [
+            OVERPASS_API_URL,
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://overpass.private.coffee/api/interpreter",
+        ]
 
-        try:
-            data = download_json(full_url)
-            # Save to cache
-            with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False)
-            logger.info(f"Saved OSM data to cache: {cache_file}")
-        except Exception as e:
-            logger.warning(
-                f"Failed to query Overpass API: {e}. Check network connection or try again later."
-            )
-            return 0
+        for endpoint in endpoints:
+            try:
+                data = download_json(
+                    f"{endpoint}?{encoded_query}",
+                    headers={"User-Agent": "KartogramETL/1.0", "Accept": "*/*"},
+                    timeout=30,
+                )
+                if data.get("remark") or not data.get("elements"):
+                    raise ValueError("Incomplete or empty Overpass response")
+                cache_file.write_text(json.dumps(data, ensure_ascii=False))
+                break
+            except Exception as error:
+                data = None
+                logger.warning("Overpass endpoint %s failed: %s", endpoint, error)
+        if data is None:
+            raise RuntimeError("All Overpass endpoints unavailable; no POI data imported")
 
+    if data.get("remark"):
+        raise ValueError("Overpass cache contains an incomplete response; refresh with --force")
     elements = data.get("elements", [])
     logger.info(f"Parsing {len(elements)} elements from OSM.")
 
@@ -93,13 +104,16 @@ def fetch_and_load_osm(bbox: tuple = DEFAULT_BBOX, force_download: bool = False)
         else:
             category = "other"
 
+        coordinates = el.get("center", el)
+        if "lon" not in coordinates or "lat" not in coordinates:
+            raise ValueError("OSM feature without coordinates")
         records.append(
             {
                 "id": f"osm-{el.get('type', 'node')}-{el.get('id')}",
                 "category": category,
                 "amenity": amenity or "other",
                 "name": name,
-                "geom": Point(el["lon"], el["lat"]),
+                "geom": Point(coordinates["lon"], coordinates["lat"]),
             }
         )
 
