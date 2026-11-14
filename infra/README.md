@@ -156,19 +156,23 @@ Docker volumes a přežívají běžné redeploye, ale **nejsou zálohou**.
 
 ### Data a provoz
 
-První deploy vytvoří schéma, nikoli datové sady. Po deploy spusť jednorázový import
-z kořene repozitáře na VPS (nebo ekvivalentním Coolify terminálem), se stejnými
-proměnnými produkčního resource:
+První deploy vytvoří schéma, nikoli datové sady. Po úspěšném deployi otevři v
+Coolify **Terminal**, vyber běžící službu `etl-runner` a spusť jednorázový import:
 
 ```sh
-docker compose --env-file .env.production -f infra/compose.prod.yml \
-  run --rm --no-deps etl python -m etl.main --all --keep-going
+python -m etl.main --all --keep-going
 ```
 
-Import načítá veřejné zdroje, může trvat a některé zdroje mohou být nedostupné;
-`--keep-going` zachová úspěšné vrstvy a neúspěchy vypíše. Neprovádí seed syntetických
-dat ani nemaže existující tabulky. Zdraví ověř přes `https://<doména>/health` a
-`https://<doména>/api/health/db`; Swagger a MCP zůstávají neveřejné.
+`etl-runner` je interní kontejner bez veřejného portu, který sdílí databázové
+připojení i datový volume se službou `etl`. Služba `etl` samotná provede při
+deployi pouze inicializaci schématu a skončí; `etl-runner` zůstává dostupný pro
+ruční příkaz v Coolify. Import načítá veřejné zdroje, může trvat a některé zdroje
+mohou být nedostupné. `--keep-going` zachová úspěšně načtené vrstvy a vypíše
+neúspěchy. Import nespouštěj, dokud `api-init` a deploy nejsou úspěšné.
+Nepřidávej `--reset`; import nemaže existující tabulky.
+
+Zdraví ověř přes `https://<doména>/health` a `https://<doména>/api/health/db`;
+Swagger a MCP zůstávají neveřejné.
 
 Naplánuj pravidelné zálohy databáze mimo VPS a ověř obnovu. Například dump:
 
