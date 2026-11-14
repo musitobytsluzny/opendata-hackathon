@@ -233,6 +233,21 @@ def prevalidate_parcel(
 
     if result:
         result.pop("geojson", None)
+        parcel = result.get("parcel")
+        if parcel and parcel.get("id") is not None:
+            from app.services.workspace_data import place_geometry
+
+            presentation = place_geometry("parcela:" + str(parcel["id"]))["result"]
+            presentation["title"] = f"Parcela {parcel['cislo_parcely']} · {parcel['ku_nazev']}"
+            presentation["view"] = "map"
+            presentation["rows"] = [
+                {"name": presentation["title"], "area_m2": parcel.get("vymera_m2")}
+            ]
+            presentation["columns"] = [
+                {"key": "name", "label": "Parcela"},
+                {"key": "area_m2", "label": "Výměra", "numeric": True, "unit": "m²"},
+            ]
+            result["result"] = presentation
     return result or {"status": "not_found", "message": "Parcela nebyla nalezena."}
 
 

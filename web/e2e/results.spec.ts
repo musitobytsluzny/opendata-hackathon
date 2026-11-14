@@ -47,6 +47,11 @@ test('one verified result supports charts, sorting, CSV and a persistent map lay
   await input.fill('Porovnej obce')
   await input.press('Enter')
   await expect(page.locator('.result-view')).toHaveCount(1)
+  await expect(page.getByRole('separator', { name: 'Šířka konverzace' })).toHaveAttribute(
+    'aria-valuenow',
+    '760',
+  )
+  await expect(page.locator('.result-view')).toBeFocused()
   await expect(page.getByRole('img', { name: /sloupcový graf/ })).toBeVisible()
   await page.getByRole('button', { name: 'Tabulka', exact: true }).click()
   await expect(page.locator('.result-view tbody tr').first()).toContainText('Plzeň')
@@ -94,6 +99,10 @@ test('agent can hide a layer from a prior answer and receives its verified refer
   await page.locator('.map-layers summary').click()
   const layer = page.getByRole('checkbox', { name: 'Obce a obyvatelé' })
   await expect(layer).toBeChecked()
+  await expect(page.getByRole('separator', { name: 'Šířka konverzace' })).toHaveAttribute(
+    'aria-valuenow',
+    '330',
+  )
   await input.fill('Skryj vrstvu obcí')
   await input.press('Enter')
   await expect(layer).not.toBeChecked()

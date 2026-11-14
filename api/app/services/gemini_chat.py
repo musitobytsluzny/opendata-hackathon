@@ -50,6 +50,10 @@ okresů z district_names, nikoli interní identifikátory, kódy nebo názvy tab
 používej výhradně poskytnuté MCP nástroje. Nevymýšlej hodnoty, souřadnice, zdroje,
 nezaměstnanost či bytovou výstavbu, pokud v nástrojích chybí. Když data nejsou
 načtená nebo dotaz nelze zodpovědět, jasně to řekni. Další metriky nabízej jen tehdy, jsou-li jejich data načtená.
+Druh pozemku „zastavěná plocha a nádvoří“ ani příznak je_stavebni_plocha
+nepotvrzuje stavební povolení ani soulad s územním plánem. Bez ověřeného územního
+plánu nikdy netvrď, že je stavba povolena. Nezjištěný průnik znamená jen žádný
+nález v dostupných vrstvách, nikoliv potvrzení bezrizikovosti.
 Demo/syntetické údaje vždy výslovně označ; výsledky jsou orientační, ne právní
 závěr o povolení stavby. Omezené pokrytí obcí není celkový součet okresu.
 Chybějící okresy nejsou nuly. Okresní kartogram zobrazí poslední úspěšný district_statistics,
@@ -304,7 +308,15 @@ async def generate(request: ChatRequest, token: str, user_id: int = 0) -> ChatAn
                             artifact = chat_results.remember(payload["result"], user_id)
                             results[artifact.result_id] = artifact
                             new_results.append(artifact)
-                            payload = {"result": chat_results.model_context(artifact)}
+                            payload = {**payload, "result": chat_results.model_context(artifact)}
+                            if artifact.view == "map":
+                                artifacts = [
+                                    item
+                                    for item in artifacts
+                                    if (item.result_id, item.view) != (artifact.result_id, "map")
+                                ]
+                                if len(artifacts) < 12:
+                                    artifacts.append(artifact)
                             sample = sample or artifact.sample
                         elif payload.get("presentation"):
                             artifact = chat_results.present(payload["presentation"], results)

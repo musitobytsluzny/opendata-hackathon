@@ -50,6 +50,7 @@ export function useWorkspaceLayout(width: number, onWidthChange: (width: number)
     sheetHeight,
     horizontal,
     vertical,
+    focusContent: (kind: 'map' | 'chart') => setSheetRatio(kind === 'map' ? 0.4 : 0.85),
     toggleSheet: () => setSheetRatio(sheetRatio > 0.7 ? 0.4 : 0.85),
   }
 }

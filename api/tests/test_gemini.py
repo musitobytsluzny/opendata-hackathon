@@ -251,3 +251,39 @@ class GeminiTests(unittest.IsolatedAsyncioTestCase):
         result = await chat.answer(ChatRequest(question="Ukaž graf"), 1, "user-token")
         self.assertEqual(result.artifacts[0].view, "bar")
         self.assertEqual(result.artifacts[0].rows[0]["value"], 42)
+
+    async def test_parcel_map_is_automatic_without_a_presentation_tool_call(self):
+        async def lookup(name, arguments):
+            data = (
+                {"datasets": []}
+                if name == "dataset_catalog"
+                else {
+                    "result": {
+                        "title": "Parcela 438 · Žihle",
+                        "view": "map",
+                        "columns": [{"key": "name", "label": "Parcela"}],
+                        "rows": [{"name": "438"}],
+                        "features": [
+                            {
+                                "type": "Feature",
+                                "id": "parcela:1",
+                                "properties": {},
+                                "geometry": {"type": "Point", "coordinates": [13.37, 50.04]},
+                            }
+                        ],
+                    }
+                }
+            )
+            return CallToolResult(content=[], structuredContent=data)
+
+        self.session.call_tool.side_effect = lookup
+        self.client.aio.models.generate_content.side_effect = [
+            self.response(name="prevalidate_address"),
+            self.response(text="Nalezená parcela."),
+        ]
+        reply = await chat.answer(
+            ChatRequest(question="Najdi parcelu na adrese Žihle 294"), 1, "token"
+        )
+        self.assertEqual(reply.artifacts[0].view, "map")
+        self.assertEqual(reply.artifacts[0].features[0]["id"], "parcela:1")
+        self.assertNotIn("show_map", [name for name, _ in self.calls])

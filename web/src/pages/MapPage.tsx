@@ -377,7 +377,28 @@ export function MapPage() {
         activeId: answer.rows?.length ? id : session.activeId,
         updatedAt: Date.now(),
       }))
-      if (answer.rows?.length && preferences.autoFocus && currentRef.current === sid) showKraj()
+      if (preferences.autoFocus && currentRef.current === sid) {
+        const chart = answer.artifacts?.some((item) => item.view === 'bar' || item.view === 'line')
+        const mapResult = answer.artifacts?.some(
+          (item) => item.view === 'map' && item.features.length,
+        )
+        if (chart || mapResult) {
+          updatePreference('panelCollapsed', false)
+          if (mobile) layout.focusContent(chart ? 'chart' : 'map')
+          else updatePreference('panelWidth', chart ? Math.min(maxWidth, 760) : 330)
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              if (currentRef.current !== sid) return
+              const element = document.querySelector<HTMLElement>(`#msg-${id} .result-view`)
+              element?.scrollIntoView({ behavior, block: 'nearest' })
+              if (chart && element) {
+                element.tabIndex = -1
+                element.focus({ preventScroll: true })
+              }
+            }),
+          )
+        } else if (answer.rows?.length) showKraj()
+      }
     } catch (error) {
       if (request.signal.aborted) return
       const text = error instanceof Error ? error.message : 'Odpověď se nepodařilo načíst.'
