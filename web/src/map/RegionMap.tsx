@@ -419,31 +419,6 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
 
   useEffect(() => {
     const m = map.current
-    if (!m || !drift || !ready || reducedMotion) return
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    let raf = 0
-    let previous = 0
-    let elapsed = 0
-    const initialBearing = m.getBearing()
-    const tick = (time: number) => {
-      const dt = previous ? Math.min(time - previous, 100) : 0
-      previous = time
-      if (!document.hidden && !media.matches && !m.isMoving()) {
-        elapsed += dt
-        // Anchor rotation to Czechia, rather than the padded viewport center.
-        m.rotateTo(initialBearing + Math.sin(elapsed / 60000) * 7, {
-          around: CZECH_CENTER,
-          duration: 0,
-        })
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [drift, interactive, ready, reducedMotion])
-
-  useEffect(() => {
-    const m = map.current
     if (!m || !ready) return
     m.setLayerZoomRange('orto', basemap === 'ortho' ? 6 : 11, 24)
     // Reuse coarse satellite tiles outside Czech ortho coverage.
@@ -480,6 +455,56 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     }
     frame(drift ? 0 : 640)
   }, [viewKey, padding.top, padding.right, padding.bottom, padding.left, frame, ready, drift])
+
+  useEffect(() => {
+    const m = map.current
+    if (!m || !drift || !ready || reducedMotion) return
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const baseBearing = m.getBearing()
+    let direction = 1
+    let disposed = false
+    let timer = 0
+    let ownsAnimation = false
+
+    const play = () => {
+      if (disposed || document.hidden || media.matches || m.isMoving()) return
+      const bearing = baseBearing + direction * 10
+      const distance = Math.abs(bearing - m.getBearing())
+      direction *= -1
+      ownsAnimation = true
+      // One native animation per leg: restarting rotateTo every frame emitted
+      // start/end events continuously and made the background stutter.
+      m.easeTo({
+        bearing,
+        around: CZECH_CENTER,
+        duration: Math.max(1000, distance * 800),
+        easing: (t) => (1 - Math.cos(Math.PI * t)) / 2,
+      })
+    }
+    const schedule = () => {
+      ownsAnimation = false
+      window.clearTimeout(timer)
+      timer = window.setTimeout(play, 0)
+    }
+    const onVisibility = () => {
+      window.clearTimeout(timer)
+      if (document.hidden || media.matches) {
+        if (ownsAnimation) m.stop()
+      } else schedule()
+    }
+    m.on('moveend', schedule)
+    document.addEventListener('visibilitychange', onVisibility)
+    media.addEventListener('change', onVisibility)
+    schedule()
+    return () => {
+      disposed = true
+      window.clearTimeout(timer)
+      m.off('moveend', schedule)
+      document.removeEventListener('visibilitychange', onVisibility)
+      media.removeEventListener('change', onVisibility)
+      if (ownsAnimation && map.current === m) m.stop()
+    }
+  }, [drift, interactive, ready, reducedMotion])
 
   const classes = ['region-map', labels ? 'region-map--values' : '', className ?? '']
     .filter(Boolean)
