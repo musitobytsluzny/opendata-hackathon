@@ -175,6 +175,7 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
           ? 0
           : duration,
       bearing: 0,
+      pitch: 0,
       easing: EASE,
     })
   }, [])
@@ -461,23 +462,32 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     if (!m || !drift || !ready || reducedMotion) return
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
     const baseBearing = m.getBearing()
-    let direction = 1
+    const baseZoom = m.getZoom()
+    const poses = [
+      { bearing: -5, pitch: 24, zoom: -0.12 },
+      { bearing: 4, pitch: 32, zoom: 0.08 },
+      { bearing: 7, pitch: 18, zoom: -0.18 },
+      { bearing: -3, pitch: 28, zoom: 0.02 },
+    ]
+    let step = 0
     let disposed = false
     let timer = 0
     let ownsAnimation = false
 
     const play = () => {
       if (disposed || document.hidden || media.matches || m.isMoving()) return
-      const bearing = baseBearing + direction * 10
-      const distance = Math.abs(bearing - m.getBearing())
-      direction *= -1
+      const pose = poses[step % poses.length]
+      const duration = step === 0 ? 8000 : 14000
+      step += 1
       ownsAnimation = true
-      // One native animation per leg: restarting rotateTo every frame emitted
-      // start/end events continuously and made the background stutter.
+      // A shallow orbit with dolly and tilt, anchored to Czechia. Native camera
+      // interpolation keeps the imagery and labels synchronized in one render loop.
       m.easeTo({
-        bearing,
+        bearing: baseBearing + pose.bearing,
+        pitch: pose.pitch,
+        zoom: Math.max(m.getMinZoom(), baseZoom + pose.zoom),
         around: CZECH_CENTER,
-        duration: Math.max(1000, distance * 800),
+        duration,
         easing: (t) => (1 - Math.cos(Math.PI * t)) / 2,
       })
     }
@@ -504,7 +514,16 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
       media.removeEventListener('change', onVisibility)
       if (ownsAnimation && map.current === m) m.stop()
     }
-  }, [drift, interactive, ready, reducedMotion])
+  }, [
+    drift,
+    interactive,
+    ready,
+    reducedMotion,
+    padding.top,
+    padding.right,
+    padding.bottom,
+    padding.left,
+  ])
 
   const classes = ['region-map', labels ? 'region-map--values' : '', className ?? '']
     .filter(Boolean)
