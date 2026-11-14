@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.1-flash-lite"
     google_cloud_project: str = ""
     google_cloud_location: str = "global"
+    google_adc_json: SecretStr = SecretStr("")
     gemini_timeout_seconds: int = Field(default=60, ge=5, le=180)
     gemini_max_output_tokens: int = Field(default=2048, ge=256, le=8192)
     llm_max_concurrent: int = Field(default=4, ge=1, le=16)

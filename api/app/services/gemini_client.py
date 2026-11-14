@@ -1,5 +1,8 @@
 """Build the configured Google Gen AI client without exposing credentials."""
 
+import json
+
+import google.auth
 from google import genai
 from google.genai import types
 
@@ -15,6 +18,19 @@ def create_gemini_client(*, retry_attempts: int = 3) -> genai.Client:
         ),
     )
     if settings.gemini_provider == "vertex":
+        adc_json = settings.google_adc_json.get_secret_value().strip()
+        if adc_json:
+            credentials, _ = google.auth.load_credentials_from_dict(
+                json.loads(adc_json),
+                scopes=["https://www.googleapis.com/auth/cloud-platform"],
+            )
+            return genai.Client(
+                enterprise=True,
+                project=settings.google_cloud_project,
+                location=settings.google_cloud_location,
+                credentials=credentials,
+                http_options=http_options,
+            )
         return genai.Client(
             enterprise=True,
             project=settings.google_cloud_project,

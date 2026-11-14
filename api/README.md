@@ -63,14 +63,22 @@ Pro Google Cloud Vertex AI s ADC místo Developer API klíče:
 
 1. Zapni Vertex AI API v Google Cloud projektu s aktivním billingem a uděl
    přihlašovací identitě roli `Vertex AI User`.
-2. Na hostiteli spusť `gcloud auth application-default login`.
-3. V `.env` nastav `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` a
-   `GOOGLE_ADC_HOST_PATH` na absolutní cestu k hostitelskému souboru
-   `application_default_credentials.json` (typicky
-   `/Users/<uživatel>/.config/gcloud/application_default_credentials.json`).
-4. Spusť `make up-cloud`. Tento Compose override nastaví Vertex režim, klíč
-   Developer API do kontejneru nepředá a připojí ADC soubor jen pro čtení.
-   Ověření živým požadavkem: `make check-gemini-cloud`.
+2. Na Google Cloud VM připoj service account s nejmenší potřebnou rolí;
+   knihovna ADC ho načte z metadata serveru bez klíče nebo souboru.
+3. Mimo Google Cloud preferuj Workload Identity Federation s OIDC/SAML identitou,
+   kterou umí runtime získat. Její credential configuration nastav jako
+   `GOOGLE_ADC_JSON`. `compose.cloud.yml` i produkční Compose ji předají API
+   bezpečně jako serverovou proměnnou.
+4. Spusť `make up-cloud`. Když ADC konfigurace chybí, stack se přesto spustí,
+   ale Vertex požadavky nebudou autentizované. Ověření živým požadavkem:
+   `make check-gemini-cloud`.
+
+Google doporučuje vyhnout se dlouhodobým service-account klíčům. Na běžném VPS bez
+připojené identity nebo dostupného externího IdP mohou být nutným fallbackem;
+v takovém případě nastav JSON klíč pouze jako šifrovanou proměnnou `GOOGLE_ADC_JSON`
+v deployment platformě, ne v repozitáři ani chatu. Podrobnosti viz
+[Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation)
+a [best practices pro service-account klíče](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys).
 
 Výchozí `make up` zůstává v režimu Developer API. Model musí být dostupný
 v nastavené lokaci Google Cloud. Nikdy nekopíruj ADC soubor do repozitáře.

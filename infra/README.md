@@ -128,15 +128,27 @@ autentizace je při buildu zakázaná a kontejnery API/MCP neběží s reloadem.
    Heslo databáze použij stejné v `POSTGRES_PASSWORD` i `DATABASE_URL`. Hexadecimální
    tvar nevyžaduje URL-encoding.
 
-5. Šablona předpokládá Vertex AI. Nastav `GOOGLE_CLOUD_PROJECT` a absolutní
-   `GOOGLE_ADC_HOST_PATH` k JSON klíči service accountu na VPS. Soubor ponech mimo
-   repozitář a zpřístupni ho UID/GID `10001` (uživatel API kontejneru), pouze pro
-   čtení, například režimem `0400`. Service accountu přiděl jen potřebnou roli,
-   typicky `Vertex AI User`; pokud VPS poskytuje bezpečnější připojenou identitu,
-   můžeš místo souborového ADC odstranit jeho bind mount i
-   `GOOGLE_APPLICATION_CREDENTIALS`.
+5. Nastav `GOOGLE_CLOUD_PROJECT`. Pro přihlášení k Vertex AI:
+   - Pokud aplikace běží na Google Cloud VM, připoj jí service account s nejmenší
+     potřebnou rolí. ADC použije metadata server; další klíč ani soubor není třeba.
+   - Na běžném VPS preferuj Workload Identity Federation, pokud VPS nebo jiná
+     runtime identita poskytuje OIDC/SAML tokeny. Credential configuration lze
+     nastavit jako šifrovanou proměnnou `GOOGLE_ADC_JSON` v Coolify. WIF vyžaduje
+     skutečného externího poskytovatele identity; Coolify sám takovou identitu
+     automaticky nevytváří.
+   - Pokud žádná připojená ani federovaná identita není dostupná, service-account
+     JSON klíč je fallback, ne doporučená volba Googlu. Ulož ho pouze do šifrované
+     proměnné `GOOGLE_ADC_JSON`; nikdy ho necommituj ani neposílej v chatu a účtu
+     přiděl jen roli `Vertex AI User`.
 6. Deploy. `db` automaticky ověří extensions, `api-init` aplikuje migrace a `etl`
-   vytvoří prostorové schéma. Teprve poté se spustí API, MCP a gateway.
+   vytvoří prostorové schéma. API se spustí i bez Google credentials, ale volání
+   Vertex AI bude fungovat až po konfiguraci ADC. Healthcheck databáze ověření
+   Google autentizace nenahrazuje.
+
+Google doporučuje ADC a federovanou identitu před dlouhodobými service-account
+klíči: [ADC](https://cloud.google.com/docs/authentication/application-default-credentials),
+[Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation)
+a [správa service-account klíčů](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys).
 
 Do Coolify vystav pouze `gateway:8080`. Databáze, API a MCP nemají publikované
 porty; MCP endpoint není routovaný zvenku. `db_data` a `etl_data` jsou pojmenované

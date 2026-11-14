@@ -191,6 +191,7 @@ class GeminiTests(unittest.IsolatedAsyncioTestCase):
             patch.object(chat.settings, "gemini_provider", "vertex"),
             patch.object(chat.settings, "google_cloud_project", "project-id"),
             patch.object(chat.settings, "google_cloud_location", "global"),
+            patch.object(chat.settings, "google_adc_json", SecretStr("")),
             patch("app.services.gemini_client.genai.Client") as client_factory,
         ):
             create_gemini_client()
@@ -200,6 +201,29 @@ class GeminiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["project"], "project-id")
         self.assertEqual(kwargs["location"], "global")
         self.assertNotIn("api_key", kwargs)
+        self.assertNotIn("credentials", kwargs)
+
+    def test_vertex_client_loads_adc_json_credentials(self):
+        adc_info = {"type": "external_account", "audience": "test-audience"}
+        credentials = object()
+        with (
+            patch.object(chat.settings, "gemini_provider", "vertex"),
+            patch.object(chat.settings, "google_cloud_project", "project-id"),
+            patch.object(chat.settings, "google_cloud_location", "global"),
+            patch.object(chat.settings, "google_adc_json", SecretStr(json.dumps(adc_info))),
+            patch(
+                "app.services.gemini_client.google.auth.load_credentials_from_dict",
+                return_value=(credentials, None),
+            ) as load_credentials,
+            patch("app.services.gemini_client.genai.Client") as client_factory,
+        ):
+            create_gemini_client()
+
+        load_credentials.assert_called_once_with(
+            adc_info,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
+        self.assertIs(client_factory.call_args.kwargs["credentials"], credentials)
 
     async def test_expired_token_is_not_forwarded_to_google(self):
         self.session.call_tool.return_value = None
