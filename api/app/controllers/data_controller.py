@@ -129,3 +129,53 @@ def parcel_at_point(
     payload = workspace_data.parcel_at_point(lat, lon)
     artifact = chat_results.remember(payload["result"], user.id)
     return {"result": artifact.model_dump()}
+
+
+from app.services import life_data  # noqa: E402
+
+
+@router.get("/municipalities/nearest")
+def nearest_municipalities(
+    origin_id: str = Query(max_length=80),
+    limit: int = Query(default=3, ge=1, le=20),
+    radius_m: int = Query(default=50000, ge=100, le=200000),
+    cities_only: bool = False,
+    population_difference_pct: float | None = Query(default=None, ge=0, le=100),
+):
+    return life_data.nearest_municipalities(
+        origin_id, limit, radius_m, cities_only, population_difference_pct
+    )
+
+
+@router.get("/facilities/nearby")
+def nearby_facilities(
+    origin_id: str = Query(max_length=80),
+    kind: str = Query(max_length=30),
+    radius_m: int = Query(default=10000, ge=50, le=100000),
+    limit: int = Query(default=5, ge=1, le=20),
+):
+    return life_data.nearby_facilities(origin_id, kind, radius_m, limit)
+
+
+@router.get("/accessibility")
+def accessibility_summary(
+    origin_id: str = Query(max_length=80), radius_m: int = Query(default=20000, ge=100, le=100000)
+):
+    return life_data.accessibility_summary(origin_id, radius_m)
+
+
+@router.get("/facilities/alternatives")
+def facility_alternatives(
+    place_id: str = Query(max_length=80),
+    radius_m: int = Query(default=20000, ge=50, le=100000),
+    limit: int = Query(default=5, ge=1, le=20),
+):
+    return life_data.facility_alternatives(place_id, radius_m, limit)
+
+
+@router.get("/routes/rank")
+def rank_driving_candidates(
+    origin_id: str = Query(max_length=80),
+    candidate_ids: list[str] = Query(min_length=1, max_length=8),
+):
+    return life_data.rank_driving_candidates(origin_id, candidate_ids)

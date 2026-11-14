@@ -88,7 +88,7 @@ BEGIN
         ROUND(MIN(CASE WHEN amenity IN ('supermarket', 'convenience') OR category = 'shopping' 
                        THEN ST_Distance(v_centroid::geography, geom::geography) END)::numeric, 1) AS dist_grocery_m
     INTO v_poi
-    FROM osm_poi
+    FROM all_facility_poi
     WHERE ST_DWithin(v_centroid::geography, geom::geography, 10000);
 
     -- 7. Demografie obce (ČSÚ) - získáno relačně podle obce

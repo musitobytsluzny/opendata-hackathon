@@ -78,3 +78,9 @@ Chybějící CRS se nehádá; zdroj musí dodat CRS nebo ho importér explicitn�
 Zápisy probíhají do existujících tabulek s omezeními a indexy; `replace` je zakázané.
 Lokální vstupy/cache v `etl/data/` a výstupy v `etl/output/` se necommitují.
 Testy používají izolovaná PostgreSQL schémata, bez síťových downloadů.
+
+Občanskou vybavenost nyní doplňují `--dataset facilities` (ČÚZK školy,
+zdravotnictví, železnice a statusy obcí) a `--dataset pmdp` (skutečné zastávky
+GTFS PMDP). Mají oddělenou provenienci v `facility_poi`; společný pohled
+`all_facility_poi` umožňuje dotazovat OSM, ČÚZK a PMDP. Podrobnosti a pokrytí:
+[KartogramMCP](../mcp/README.md#skutečné-podklady-pro-občanskou-vybavenost).

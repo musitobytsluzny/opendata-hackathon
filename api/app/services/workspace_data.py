@@ -12,6 +12,7 @@ PLACE_TABLES = {
     "obec": ("ruian_obce", "kod_obce", "nazev"),
     "ku": ("ruian_ku", "kod_ku", "nazev"),
     "poi": ("osm_poi", "id", "name"),
+    "facility": ("facility_poi", "id", "name"),
     "parcela": ("ruian_parcely", "id", "cislo_parcely"),
 }
 CATEGORIES = {"healthcare", "education", "transport", "shopping"}
@@ -77,6 +78,10 @@ def search_places(query, kind="obec", limit=10):
     if kind not in PLACE_TABLES:
         raise HTTPException(422, "Neznámý typ místa.")
     table, primary, name = PLACE_TABLES[kind]
+    source_tables = [table]
+    if kind == "poi":
+        table, primary = "all_facility_poi", "place_id"
+        source_tables = ["osm_poi", "facility_poi"]
     with read_connection() as connection:
         rows = (
             connection.execute(
@@ -99,13 +104,17 @@ def search_places(query, kind="obec", limit=10):
             .mappings()
             .all()
         )
-    places = [dict(row, id=f"{kind}:{row['key']}") for row in rows if row["point"]]
+    places = [
+        dict(row, id=row["key"] if kind == "poi" else f"{kind}:{row['key']}")
+        for row in rows
+        if row["point"]
+    ]
     return result(
         "Nalezená místa",
         [{"id": p["id"], "name": p["name"]} for p in places],
         [column("name", "Místo"), column("id", "Identifikátor")],
         [feature(p, point=True) for p in places],
-        [table],
+        source_tables,
         "Bod obce či katastru je vnitřní bod území, nikoliv adresa nebo vstup do budovy.",
     )
 
@@ -194,13 +203,13 @@ def nearby_places(origin_id, category=None, radius_m=5000, limit=10):
             connection.execute(
                 text("""
             WITH origin AS (SELECT ST_SetSRID(ST_GeomFromGeoJSON(:point),4326)::geography AS g)
-            SELECT p.id,p.name,p.category,ST_AsGeoJSON(p.geom) AS point,
+            SELECT p.place_id AS id,p.name,p.category,ST_AsGeoJSON(p.geom) AS point,
                    ST_Distance(p.geom::geography,o.g) AS distance_m
-            FROM osm_poi p CROSS JOIN origin o
+            FROM all_facility_poi p CROSS JOIN origin o
             WHERE (CAST(:category AS text) IS NULL OR p.category=:category)
               AND ST_DWithin(p.geom::geography,o.g,:radius)
-              AND ('poi:' || p.id) <> :origin
-            ORDER BY distance_m,p.id LIMIT :limit
+              AND p.place_id <> :origin
+            ORDER BY distance_m,p.place_id LIMIT :limit
         """),
                 {
                     "point": origin["point"],
@@ -215,16 +224,14 @@ def nearby_places(origin_id, category=None, radius_m=5000, limit=10):
         )
     rows = [
         {
-            "id": "poi:" + r["id"],
+            "id": r["id"],
             "name": r["name"],
             "category": r["category"],
             "distance_m": round(r["distance_m"], 1),
         }
         for r in data
     ]
-    features = [feature(origin, point=True)] + [
-        feature(dict(r, id="poi:" + r["id"]), point=True) for r in data
-    ]
+    features = [feature(origin, point=True)] + [feature(dict(r), point=True) for r in data]
     return result(
         "Místa v okolí: " + origin["name"],
         rows,
@@ -234,7 +241,7 @@ def nearby_places(origin_id, category=None, radius_m=5000, limit=10):
             column("distance_m", "Vzdušná vzdálenost", True, "m"),
         ],
         features,
-        [origin["table"], "osm_poi"],
+        [origin["table"], "osm_poi", "facility_poi"],
         "Geodetická vzdálenost po elipsoidu WGS84 od bodu místa, nikoli délka cesty. Jen načtené POI.",
     )
 

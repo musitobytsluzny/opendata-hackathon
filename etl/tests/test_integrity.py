@@ -159,3 +159,42 @@ class IntegrityTests(unittest.TestCase):
             db.save_geodataframe(source, "osm_poi", if_exists="replace")
         with self.assertRaisesRegex(ValueError, "Not an ETL-managed table"):
             db.save_dataframe(source, "users")
+
+    def test_official_facilities_keep_source_and_kindergarten_type_on_repeat_import(self):
+        from etl.downloaders.facilities import fetch_and_load_facilities
+
+        seed.run_seed()
+        school = gpd.GeoDataFrame(
+            [
+                {
+                    "fid_zbg": 123,
+                    "nazev": "Fixture školka",
+                    "vzdelani_p": "mateřská škola běžná",
+                    "geometry": Point(13, 49),
+                }
+            ],
+            geometry="geometry",
+            crs=4326,
+        )
+        empty = gpd.GeoDataFrame(geometry=[], crs=4326)
+        status = gpd.GeoDataFrame(
+            [{"kod": 554791, "statuskod": 3, "geometry": Point(13, 49)}],
+            geometry="geometry",
+            crs=4326,
+        )
+        for _ in range(2):
+            with patch(
+                "etl.downloaders.facilities.fetch_layer",
+                side_effect=[school.copy(), empty, empty, empty, empty, status.copy()],
+            ):
+                self.assertEqual(fetch_and_load_facilities(), 1)
+        with self.engine.connect() as connection:
+            row = connection.execute(text("SELECT amenity,publisher FROM facility_poi")).one()
+            self.assertEqual(tuple(row), ("kindergarten", "ČÚZK · ZABAGED"))
+            self.assertEqual(connection.scalar(text("SELECT count(*) FROM facility_poi")), 1)
+            self.assertEqual(
+                connection.scalar(
+                    text("SELECT status_kod FROM municipality_status WHERE kod_obce=554791")
+                ),
+                3,
+            )

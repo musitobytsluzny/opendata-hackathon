@@ -32,6 +32,9 @@ class WorkspaceTests(unittest.TestCase):
                 "CREATE TABLE ruian_obce(kod_obce int,kod_okresu text,nazev text,geom geometry(Geometry,4326))",
                 "CREATE TABLE csu_demografie_obce(kod_obce int,pocet_obyvatel int,seniori_65_plus int,deti_0_14 int)",
                 "CREATE TABLE osm_poi(id text,name text,category text,geom geometry(Point,4326))",
+                "CREATE TABLE facility_poi(id text,name text,category text,amenity text,publisher text,source_url text,geom geometry(Point,4326))",
+                "CREATE TABLE municipality_status(kod_obce int,status_kod int,status_name text)",
+                "CREATE VIEW all_facility_poi AS SELECT 'poi:'||id AS place_id,name,category,'pharmacy'::text AS amenity,'OpenStreetMap'::text AS publisher,'https://www.openstreetmap.org/'::text AS source_url,geom FROM osm_poi UNION ALL SELECT 'facility:'||id,name,category,amenity,publisher,source_url,geom FROM facility_poi",
                 "INSERT INTO okresy VALUES('test','Klatovy')",
                 "INSERT INTO ruian_obce VALUES(1,'test','Žlutá',ST_SetSRID(ST_Point(13,49),4326)),(2,'test','Sever',ST_SetSRID(ST_Point(13,50),4326))",
                 "INSERT INTO csu_demografie_obce VALUES(1,100,20,10),(2,300,90,30)",
@@ -171,3 +174,98 @@ class WorkspaceTests(unittest.TestCase):
         self.assertLess(data["rows"][0]["value"], 900000)
         self.assertTrue(data["columns"][-1]["additive"])
         self.assertEqual(data["columns"][-1]["unit"], "m²")
+
+    def test_nearest_cities_use_official_status_and_exclude_origin(self):
+        from app.services import life_data
+
+        with self.db.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ruian_obce VALUES(3,'test','Blízká vesnice',ST_SetSRID(ST_Point(13.01,49),4326)),(4,'test','Blízké město',ST_SetSRID(ST_Point(13.02,49),4326))"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO municipality_status VALUES(1,3,'Město'),(2,3,'Město'),(3,2,'Obec'),(4,3,'Město')"
+                )
+            )
+            connection.execute(
+                text("INSERT INTO csu_demografie_obce VALUES(3,50,10,5),(4,110,10,5)")
+            )
+        cities = life_data.nearest_municipalities("obec:1", 3, 200000, True)["result"]["rows"]
+        self.assertEqual([r["id"] for r in cities], ["obec:4", "obec:2"])
+        villages = life_data.nearest_municipalities("obec:1", 1, 200000)["result"]["rows"]
+        self.assertEqual(villages[0]["id"], "obec:3")
+        similar = life_data.nearest_municipalities("obec:1", 5, 200000, False, 20)["result"]["rows"]
+        self.assertEqual([r["id"] for r in similar], ["obec:4"])
+
+    def test_hospitals_are_not_replaced_by_closer_doctors_and_missing_services_are_null(self):
+        from app.services import life_data
+
+        with self.db.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO facility_poi VALUES('doctor','Ordinace','healthcare','doctors','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13.0001,49),4326)),('hospital','Nemocnice','healthcare','hospital','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13.002,49),4326)),('school','Škola','education','school','ČÚZK','https://cuzk.gov.cz/',ST_SetSRID(ST_Point(13.003,49),4326))"
+                )
+            )
+        hospitals = life_data.nearby_facilities("obec:1", "hospital", 1000, 5)["result"]
+        self.assertEqual([r["id"] for r in hospitals["rows"]], ["facility:hospital"])
+        self.assertEqual(hospitals["rows"][0]["publisher"], "ČÚZK")
+        with geo_data.read_connection() as connection:
+            self.assertEqual(
+                workspace.resolve(connection, "facility:hospital")["name"], "Nemocnice"
+            )
+        summary = life_data.accessibility_summary("obec:1", 1000)["result"]["rows"]
+        kindergarten = next(row for row in summary if row["service"] == "Mateřské školy")
+        self.assertIsNone(kindergarten["distance_m"])
+        self.assertIsNone(kindergarten["name"])
+        school = next(row for row in summary if row["service"] == "Školy")
+        self.assertEqual(school["name"], "Škola")
+        self.assertFalse(
+            life_data.facility_alternatives("facility:hospital", 1000, 5)["result"]["rows"]
+        )
+        nearby = workspace.search_places("Nemocnice", "poi")["result"]["rows"]
+        self.assertEqual(nearby[0]["id"], "facility:hospital")
+
+    def test_driving_candidates_are_ranked_by_actual_route_not_straight_line(self):
+        from app.services import life_data
+
+        real_client = httpx.Client
+
+        def handler(request):
+            self.assertIn("/table/v1/driving/", str(request.url))
+            return httpx.Response(
+                200, json={"code": "Ok", "distances": [[40000, 10000]], "durations": [[2400, 600]]}
+            )
+
+        with self.db.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ruian_obce VALUES(3,'test','Třetí',ST_SetSRID(ST_Point(13.02,49),4326))"
+                )
+            )
+        with patch.object(
+            life_data.httpx,
+            "Client",
+            side_effect=lambda **kwargs: real_client(
+                **kwargs, transport=httpx.MockTransport(handler)
+            ),
+        ):
+            answer = life_data.rank_driving_candidates("obec:1", ["obec:2", "obec:3"])["result"]
+        self.assertEqual(answer["rows"][0]["id"], "obec:3")
+        self.assertEqual(answer["rows"][0]["distance_km"], 10)
+        self.assertIn("Pouze zadaní kandidáti", answer["note"])
+
+    def test_public_transport_returns_distinct_stops_not_repeated_platforms(self):
+        from app.services import life_data
+
+        with self.db.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO facility_poi VALUES('a','Náměstí','transport','public_transport_stop','PMDP','https://pmdp.cz/',ST_SetSRID(ST_Point(13.001,49),4326)),('b','Náměstí','transport','public_transport_stop','PMDP','https://pmdp.cz/',ST_SetSRID(ST_Point(13.002,49),4326)),('c','Škola','transport','public_transport_stop','PMDP','https://pmdp.cz/',ST_SetSRID(ST_Point(13.003,49),4326))"
+                )
+            )
+        rows = life_data.nearby_facilities("obec:1", "public_transport", 1000, 3)["result"]["rows"]
+        self.assertEqual([r["name"] for r in rows], ["Náměstí", "Škola"])
+        alternatives = life_data.facility_alternatives("facility:a", 1000, 3)["result"]["rows"]
+        self.assertEqual([r["name"] for r in alternatives], ["Škola"])

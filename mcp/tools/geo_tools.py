@@ -259,3 +259,107 @@ def register_geo_tools(server: FastMCP):
                 "operation": operation,
             }
         }
+
+    @server.tool()
+    async def nearest_municipalities(
+        origin_id: str,
+        limit: int = 3,
+        radius_m: int = 50000,
+        cities_only: bool = False,
+        ctx: Context = None,
+    ) -> dict:
+        """Find actual nearest neighbours without the user naming candidates. Resolve origin
+        with search_places, then rank loaded municipalities by measured WGS84 distance between
+        interior points. cities_only=true restricts to official RÚIAN cities (not villages).
+        Excludes the origin municipality. radius <=200000 m, limit <=20. For driving ranking,
+        pass discovered IDs to rank_driving_candidates; do not label straight-line distances as road distances.
+        """
+        return await _read(
+            ctx,
+            "/data/municipalities/nearest",
+            {
+                "origin_id": origin_id,
+                "limit": limit,
+                "radius_m": radius_m,
+                "cities_only": cities_only,
+            },
+        )
+
+    @server.tool()
+    async def alternative_municipalities(
+        origin_id: str,
+        population_difference_pct: float = 50,
+        radius_m: int = 50000,
+        cities_only: bool = False,
+        limit: int = 5,
+        ctx: Context = None,
+    ) -> dict:
+        """Find nearby alternative municipalities with similar measured population, within
+        ±population_difference_pct (0–100) of the origin. Explicit similarity criterion, not a
+        subjective quality-of-life score. Exact census values and actual distance; no invented prices or safety ratings.
+        """
+        return await _read(
+            ctx,
+            "/data/municipalities/nearest",
+            {
+                "origin_id": origin_id,
+                "limit": limit,
+                "radius_m": radius_m,
+                "cities_only": cities_only,
+                "population_difference_pct": population_difference_pct,
+            },
+        )
+
+    @server.tool()
+    async def nearby_facilities(
+        origin_id: str, kind: str, radius_m: int = 10000, limit: int = 5, ctx: Context = None
+    ) -> dict:
+        """Find nearest actual everyday facilities. kind: school, primary_school, secondary_school, university, kindergarten, hospital,
+        healthcare, pharmacy, public_transport, railway_station, grocery. Hospital means hospital,
+        not any doctor. Uses loaded OSM/ČÚZK/PMDP data and returns publishers and map geometry.
+        Distances are geodesic, not walking/driving time. Expand radius if empty; do not claim the service doesn't exist.
+        """
+        return await _read(
+            ctx,
+            "/data/facilities/nearby",
+            {"origin_id": origin_id, "kind": kind, "radius_m": radius_m, "limit": limit},
+        )
+
+    @server.tool()
+    async def accessibility_summary(
+        origin_id: str, radius_m: int = 20000, ctx: Context = None
+    ) -> dict:
+        """Neighbourhood everyday-life overview: nearest loaded school, kindergarten, hospital,
+        pharmacy, public transport and grocery, with actual distances and missing values explicit.
+        Suitable for evaluating a selected parcel or comparing places. No implied opening hours,
+        school capacity, departures, transit frequency or arbitrary liveability scores.
+        """
+        return await _read(
+            ctx, "/data/accessibility", {"origin_id": origin_id, "radius_m": radius_m}
+        )
+
+    @server.tool()
+    async def facility_alternatives(
+        place_id: str, radius_m: int = 20000, limit: int = 5, ctx: Context = None
+    ) -> dict:
+        """Find other facilities of the same supported type/category near a known facility,
+        excluding itself. Use for 'another school/hospital/stop'. Does not assert capacity or current availability.
+        """
+        return await _read(
+            ctx,
+            "/data/facilities/alternatives",
+            {"place_id": place_id, "radius_m": radius_m, "limit": limit},
+        )
+
+    @server.tool()
+    async def rank_driving_candidates(
+        origin_id: str, candidate_ids: list[str], ctx: Context
+    ) -> dict:
+        """Compare 1–8 verified candidate IDs by real OSRM driving distance and modelled duration
+        in one routing matrix query. Discover candidates first using nearest_municipalities or
+        nearby_facilities. Ranking applies only to these candidates, not all possible places.
+        Missing routes remain missing; never substitute guessed times or straight-line estimates.
+        """
+        return await _read(
+            ctx, "/data/routes/rank", {"origin_id": origin_id, "candidate_ids": candidate_ids}
+        )

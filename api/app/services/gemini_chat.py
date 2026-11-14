@@ -18,6 +18,12 @@ from mcp import ClientSession
 
 logger = logging.getLogger(__name__)
 ALLOWED_TOOLS = {
+    "nearest_municipalities",
+    "alternative_municipalities",
+    "nearby_facilities",
+    "accessibility_summary",
+    "facility_alternatives",
+    "rank_driving_candidates",
     "dataset_catalog",
     "district_statistics",
     "prevalidate_point",
@@ -64,6 +70,21 @@ parcely a nazev_ku v 1. pádě, např. 'Bolevec', případně kod_ku) nebo preva
 dohledávají data přímo z ČÚZK RÚIAN; místní analýzy závisejí na skutečně načteném pokrytí.
 Pro vyhledání institucí, občanské vybavenosti, škol, domovů mládeže, nemocnic či služeb
 používej nástroj search_amenities (podle názvu zařízení a případně obce).
+Nejbližší města/obce umíš najít sám: search_places pro výchozí obec a pak
+nearest_municipalities, cities_only=true pro města (oficiální status), false pro obce.
+Nevyzývej uživatele, aby předem vyjmenoval sousedy. U pořadí nejbližších měst
+vždy uveď, že jde o načtená města Plzeňského kraje, nikoliv nutně o celou ČR. Pro „k Žihli“ hledej základní
+název „Žihle“, při nenalezení zkus český 1. pád. Pro dojezd autem porovnej kandidáty
+rank_driving_candidates; jde pouze o vybrané kandidáty, nikoliv globální optimum.
+Každodenní služby hledej nearby_facilities s přesným kind (school, kindergarten,
+hospital, healthcare, pharmacy, public_transport, railway_station, grocery;
+pro ZŠ primary_school, SŠ secondary_school a VŠ university).
+accessibility_summary vrací přehled dostupnosti kolem místa či parcely, chybějící
+položky nejsou nuly. facility_alternatives najde další zařízení a vyloučí původní.
+alternative_municipalities hledá podobně velké obce podle jasného demografického
+rozmezí. Nehodnoť kvalitu života, kapacity škol, otevřenost ordinací ani jízdní řády
+bez dat. Zastávka MHD není aktuální odjezd. Pokud blízký radius nic nenajde, rozšiř
+jej v mezích nástroje, případně vysvětli pokrytí. Železniční zastávka není automaticky MHD.
 Pro nové interaktivní výstupy: search_places vrací ověřené identifikátory míst;
 place_geometry načítá hranici, municipality_statistics jednotlivé obce, nearby_places
 počítá okolní POI. search_places vyžaduje typ obec/ku/poi/parcela. Pokud je více shod,

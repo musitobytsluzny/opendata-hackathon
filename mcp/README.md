@@ -63,3 +63,52 @@ sčitatelné nezáporné hodnoty a výběr má 2–12 položek. Podíly odpovíd
 nikoliv automaticky celému kraji. Procentní ukazatele a indexy se neskládají do koláče.
 `municipality_statistics(metric="area_m2")` počítá rozlohu správního území obce pomocí
 PostGIS `ST_Area(geom::geography)`; nejde o rozlohu samotné zástavby.
+
+## Sousední města, alternativy a každodenní život
+
+- `nearest_municipalities`: skutečně nejbližší načtené obce, bez předem zadaných
+  kandidátů. `cities_only=true` filtruje status RÚIAN 3/4/5; vesnice nejsou vydávané
+  za města. Měří se mezi vnitřními body správních území a výchozí obec se vynechává.
+- `alternative_municipalities`: blízké obce s počtem obyvatel v explicitním
+  procentním rozmezí od výchozí obce. Jde o demografickou podobnost, nikoliv skóre
+  kvality života, cen nemovitostí či bezpečnosti.
+- `nearby_facilities`: školy, ZŠ, SŠ, VŠ, školky, nemocnice, zdravotnictví, lékárny,
+  veřejná doprava, železnice a potraviny. Nemocnice se nezaměňuje za ordinaci;
+  školky se odlišují od škol podle atributu ČÚZK. MHD vybírá nejbližší nástupiště
+  pro každou pojmenovanou zastávku, ne několik kopií téže zastávky.
+- `accessibility_summary`: nejbližší zařízení v šesti každodenních kategoriích.
+  Chybějící nález zůstává NULL. Obsahuje výchozí místo, takže dva přehledy lze
+  porovnat přes `compare_results`.
+- `facility_alternatives`: další zařízení stejného podporovaného typu/kategorie;
+  vylučuje původní zařízení i ostatní nástupiště téže zastávky.
+- `rank_driving_candidates`: jedna skutečná matice OSRM pro 1–8 kandidátů. Porovnává
+  délku nejrychlejší automobilové trasy a modelový čas bez živé dopravy. Pořadí
+  platí jen pro kandidáty, ne pro všechny možné cíle v databázi.
+
+Všechny výsledky lze rovnou zobrazit na mapě a v tabulce; číselné sloupce i v grafu.
+Vzdušné měření není jízdní ani pěší vzdálenost. Bod obce nemusí být jejím náměstím.
+
+## Skutečné podklady pro občanskou vybavenost
+
+```sh
+docker compose run --rm --no-deps etl python -m etl.main --dataset facilities
+docker compose run --rm --no-deps etl python -m etl.main --dataset pmdp
+```
+
+Import `facilities` načítá školy, zdravotnictví a železnici z oficiálního
+[ZABAGED ČÚZK](https://ags.cuzk.gov.cz/arcgis/rest/services/ZABAGED_POLOHOPIS/MapServer)
+a statusy obcí z [RÚIAN](https://ags.cuzk.gov.cz/arcgis/rest/services/RUIAN/MapServer/12).
+Import `pmdp` čte jen zastávky z oficiálního
+[GTFS PMDP](https://opendata.plzen.eu/public/opendata/detail/187), licence CC BY 4.0.
+Neimportuje odjezdy ani frekvenci spojů.
+
+Nová tabulka `facility_poi` uchovává vydavatele a zdrojové URL; údaje ČÚZK a PMDP se
+neoznačují jako OpenStreetMap. Pohled `all_facility_poi` je spojuje s existujícím OSM.
+Nové importy mají vlastní transakční zámek a potvrzují se atomicky; dlouhý parcelní
+import je neblokuje. Opakovaný import upsertuje stabilní identifikátory.
+
+Pokrytí obcí a jejich statusů odpovídá Plzeňskému kraji, grafické podklady ČÚZK jeho
+obálce s přesahem, PMDP pouze Plzni a obsluhovanému okolí. MHD mimo tato data se
+nepředstírá. Dostupnost lékáren a obchodů závisí na skutečně načtených OSM datech;
+prázdný nález není důkaz neexistence. Data nepotvrzují ordinační dobu, kapacitu škol,
+aktuální provoz, dostupnou péči ani odjezdy spojů.
