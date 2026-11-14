@@ -14,6 +14,9 @@
   --blue-4: #17457a;
   --blue-ink: #1b4c85;
   --danger: #b3261e;
+  --danger-bg: #fbeceb;
+  --tint: 0 0 0;
+  --raised: #ffffff;
   --radius: 12px;
   --radius-s: 8px;
   --gap: 16px;
@@ -27,7 +30,29 @@
   color-scheme: light;
 }
 
-.app-loading,
+:root[data-text='large'] {
+  --ts: 1.15;
+}
+
+:root[data-theme='dark'] .app,
+:root[data-theme='dark'] .auth__card {
+  --paper: #171c18;
+  --ink: #f1f3f1;
+  --ink-icon: #c5cac6;
+  --ink-muted: rgba(255, 255, 255, 0.68);
+  --ink-faint: rgba(255, 255, 255, 0.14);
+  --ink-hair: rgba(255, 255, 255, 0.1);
+  --blue-1: rgba(156, 193, 234, 0.18);
+  --blue-ink: #a9cdf2;
+  --danger: #ff9d94;
+  --danger-bg: rgba(255, 125, 115, 0.14);
+  --tint: 255 255 255;
+  --raised: #2b332d;
+  color: var(--ink);
+  color-scheme: dark;
+  scrollbar-color: rgba(255, 255, 255, 0.24) transparent;
+}
+
 .map-unavailable {
   min-height: 100%;
   display: grid;
@@ -120,7 +145,7 @@ input {
 }
 
 .maplibregl-ctrl-attrib a {
-  color: var(--ink) !important;
+  color: #161816 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -136,4 +161,11 @@ textarea,
 select {
   font: inherit;
   color: inherit;
+}
+
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+  animation-duration: 1ms !important;
+  transition-duration: 1ms !important;
 }

@@ -1812,3 +1812,107 @@
 .panel {
   z-index: 3;
 }
+
+.choice__label {
+  white-space: nowrap;
+}
+
+.choice__options {
+  display: flex;
+  flex: none;
+  padding: 2px;
+  border-radius: var(--radius-s);
+  background: rgb(var(--tint) / 0.07);
+}
+
+.choice__option {
+  position: relative;
+  cursor: pointer;
+}
+
+.choice__option input,
+.switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.choice__option span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: calc(13px * var(--ts, 1));
+  font-weight: 550;
+  color: var(--ink-muted);
+  transition:
+    background-color 0.2s var(--ease-out),
+    color 0.2s var(--ease-out),
+    box-shadow 0.2s var(--ease-out);
+}
+
+.choice__option:hover span {
+  color: var(--ink);
+}
+
+.choice__option input:checked + span {
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+.choice__option input:focus-visible + span,
+.switch input:focus-visible + .choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  font-size: 13px;
+}
+.choice__option input {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.map-legend__ramp {
+  background: linear-gradient(90deg, var(--data-low), var(--data-mid) 50%, var(--data-high));
+}
+.bar {
+  background: var(--data-high, var(--blue-3));
+}
+:root[data-theme='dark'] .app .icon-btn:disabled,
+:root[data-theme='dark'] .app .ask__send:disabled {
+  color: var(--ink-muted);
+  opacity: 0.45;
+}
+:root[data-theme='dark'] .app .markdown pre,
+:root[data-theme='dark'] .app .markdown th,
+:root[data-theme='dark'] .app .answer__data thead th,
+:root[data-theme='dark'] .app .suggestion:hover,
+:root[data-theme='dark'] .app .session:hover,
+:root[data-theme='dark'] .app .settings__field select {
+  background: var(--raised);
+}
+:root[data-theme='dark'] .app .msg__error {
+  background: var(--danger-bg);
+}
+:root[data-theme='dark'] .app .popover__item:hover,
+:root[data-theme='dark'] .app .switch:hover,
+:root[data-theme='dark'] .app .user-message__label .icon-btn:hover {
+  background: rgb(var(--tint) / 0.08);
+}
+
+.switch input {
+  pointer-events: auto;
+}
+
+@media (max-width: 720px) {
+  .app > .popover {
+    max-height: min(calc(var(--viewport-height) - 40px), calc(100dvh - 40px));
+  }
+}

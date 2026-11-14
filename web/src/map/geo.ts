@@ -35,8 +35,8 @@ export const OKRESY: Record<OkresId, { name: string; center: [number, number] }>
   CZ0327000000: { name: 'Tachov', center: [12.7657, 49.7682] },
 }
 
-export const TOWNS: { name: string; at: [number, number]; major?: boolean }[] = [
-  { name: 'Plzeň', at: [13.3776, 49.7475], major: true },
+export const TOWNS: { name: string; at: [number, number]; major?: boolean; left?: boolean }[] = [
+  { name: 'Plzeň', at: [13.3776, 49.7475], major: true, left: true },
   { name: 'Klatovy', at: [13.2952, 49.3955], major: true },
   { name: 'Domažlice', at: [12.9297, 49.4405], major: true },
   { name: 'Tachov', at: [12.6336, 49.7953], major: true },

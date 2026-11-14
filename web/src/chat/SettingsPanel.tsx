@@ -1,4 +1,7 @@
 import { DEFAULT_PREFERENCES, type Preferences } from '../hooks/usePreferences'
+import { useState } from 'react'
+import { Choice } from '../components/Choice'
+import { PALETTES } from '../map/palette'
 import { Icon } from '../components/Icon'
 
 type Props = {
@@ -7,6 +10,8 @@ type Props = {
   reset: () => void
   username?: string
   logout: () => void
+  onClearHistory: () => void
+  hasHistory: boolean
 }
 
 const toggles = [
@@ -19,7 +24,16 @@ const toggles = [
   ['reducedMotion', 'Omezit animace'],
 ] as const
 
-export function SettingsPanel({ preferences, update, reset, username, logout }: Props) {
+export function SettingsPanel({
+  preferences,
+  update,
+  reset,
+  username,
+  logout,
+  onClearHistory,
+  hasHistory,
+}: Props) {
+  const [confirmClear, setConfirmClear] = useState(false)
   return (
     <div
       id="popover-settings"
@@ -65,8 +79,50 @@ export function SettingsPanel({ preferences, update, reset, username, logout }: 
         >
           <option value="satellite">Satelitní · rychlejší přehled</option>
           <option value="ortho">Ortofoto ČÚZK · větší detail</option>
+          <option value="dark">Tmavý · bez snímků</option>
         </select>
       </label>
+      <Choice
+        label="Barevná škála"
+        value={preferences.palette}
+        options={
+          [
+            {
+              value: 'blue',
+              label: 'Modrá',
+              swatch: (
+                <i
+                  className="choice__scale"
+                  style={{ background: `linear-gradient(90deg, ${PALETTES.blue.join(', ')})` }}
+                />
+              ),
+            },
+            {
+              value: 'cividis',
+              label: 'Kontrastní',
+              swatch: (
+                <i
+                  className="choice__scale"
+                  style={{ background: `linear-gradient(90deg, ${PALETTES.cividis.join(', ')})` }}
+                />
+              ),
+            },
+          ] as const
+        }
+        onChange={(value) => update('palette', value)}
+      />
+      <Choice
+        label="Vzhled"
+        value={preferences.theme}
+        options={
+          [
+            { value: 'system', label: 'Systém' },
+            { value: 'light', label: 'Světlý' },
+            { value: 'dark', label: 'Tmavý' },
+          ] as const
+        }
+        onChange={(value) => update('theme', value)}
+      />
       <label className="settings__field">
         Velikost textu
         <select
@@ -82,6 +138,35 @@ export function SettingsPanel({ preferences, update, reset, username, logout }: 
       <button type="button" className="popover__item" onClick={reset}>
         Obnovit výchozí nastavení
       </button>
+      {confirmClear ? (
+        <div className="confirm" role="alertdialog" aria-label="Smazat historii konverzací">
+          <p className="confirm__text">
+            Smazat všechny konverzace a rozepsané dotazy? Tento krok nejde vrátit.
+          </p>
+          <div className="confirm__actions">
+            <button type="button" className="confirm__btn" onClick={() => setConfirmClear(false)}>
+              Zrušit
+            </button>
+            <button
+              type="button"
+              className="confirm__btn confirm__btn--danger"
+              onClick={onClearHistory}
+            >
+              Smazat
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="popover__item"
+          disabled={!hasHistory}
+          onClick={() => setConfirmClear(true)}
+        >
+          <Icon name="trash" size={18} />
+          Smazat historii konverzací
+        </button>
+      )}
       <button type="button" className="popover__item" onClick={logout}>
         <Icon name="logout" size={18} />
         Odhlásit se

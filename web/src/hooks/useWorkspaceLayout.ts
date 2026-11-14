@@ -5,7 +5,7 @@ import { useDragResize } from './useDragResize'
 export function useWorkspaceLayout(width: number, onWidthChange: (width: number) => void) {
   const readViewport = () => ({
     width: window.innerWidth,
-    height: window.visualViewport?.height ?? window.innerHeight,
+    height: Math.min(window.innerHeight, window.visualViewport?.height ?? window.innerHeight),
     top: window.visualViewport?.offsetTop ?? 0,
   })
   const [viewport, setViewport] = useState(readViewport)

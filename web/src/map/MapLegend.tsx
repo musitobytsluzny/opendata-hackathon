@@ -30,7 +30,7 @@ export function MapLegend({ answer, focused, onReset, onHide }: Props) {
             className="map-legend__ramp"
             style={
               Math.min(...values) === Math.max(...values)
-                ? { background: 'var(--blue-1)' }
+                ? { background: 'var(--data-low, var(--blue-1))' }
                 : undefined
             }
             aria-hidden="true"

@@ -76,7 +76,13 @@ export function useChatSessions(userId?: string, username?: string) {
   const key = `chat_sessions:${userId ?? 'anon'}`
   const [initial] = useState(() => {
     const stored = load(key)
-    const legacy = stored.length ? stored : load(`chat_sessions:${username ?? 'anon'}`)
+    let hasCurrentStorage = false
+    try {
+      hasCurrentStorage = localStorage.getItem(key) !== null
+    } catch {
+      /* Storage optional. */
+    }
+    const legacy = hasCurrentStorage ? stored : load(`chat_sessions:${username ?? 'anon'}`)
     const sessions = legacy.length ? legacy : [newSession()]
     let id = sessions[0].id
     try {
@@ -127,5 +133,16 @@ export function useChatSessions(userId?: string, username?: string) {
     setSessions((list) => [session, ...list.filter((item) => item.id !== session.id)])
     setCurrentId(session.id)
   }
-  return { restore, sessions, current, currentId, setCurrentId, update, create, remove }
+  function clear() {
+    const fresh = newSession()
+    setSessions([fresh])
+    setCurrentId(fresh.id)
+    save(key, [fresh], fresh.id)
+    try {
+      localStorage.removeItem(`chat_sessions:${username ?? 'anon'}`)
+    } catch {
+      /* Storage optional. */
+    }
+  }
+  return { clear, restore, sessions, current, currentId, setCurrentId, update, create, remove }
 }

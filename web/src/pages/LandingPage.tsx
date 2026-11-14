@@ -4,6 +4,7 @@ import { PENDING_QUESTION_KEY, formatValue, normalize, type Answer } from '../ch
 import { SAMPLES } from '../chat/samples'
 import { MiniKraj } from '../map/MiniKraj'
 import { RegionMap } from '../map/LazyRegionMap'
+import type { OkresId } from '../map/geo'
 import { navigate, routes } from '../router/router'
 import { Link } from '../router/Link'
 import { useAuth } from '../auth/AuthContext'
@@ -55,6 +56,7 @@ export function LandingPage() {
   const { user } = useAuth()
   const { demo, typed, phase } = useDemo()
   const [question, setQuestion] = useState('')
+  const [hovered, setHovered] = useState<OkresId | null>(null)
 
   const shown = phase === 'answer' ? demo.a : null
   const values = useMemo(() => (shown?.rows ? normalize(shown.rows) : null), [shown])
@@ -113,6 +115,9 @@ export function LandingPage() {
             labels={labels}
             padding={heroPadding}
             drift
+            hoverable
+            hovered={hovered}
+            onHover={setHovered}
             showTowns={!narrow}
           />
         </div>

@@ -463,6 +463,7 @@ export function MapPage() {
         maskOpacity={preferences.dimOutside ? preferences.dimOpacity : 0}
         showTowns={preferences.showTowns}
         basemap={preferences.basemap}
+        palette={preferences.palette}
         reducedMotion={motion || dragging}
         onSelect={(id) => {
           if (focused === id) showKraj()
@@ -591,6 +592,16 @@ export function MapPage() {
                   reset={resetPreferences}
                   username={user?.username}
                   logout={logout}
+                  hasHistory={sessions.some(
+                    (session) => session.messages.length > 0 || session.draft?.trim(),
+                  )}
+                  onClearHistory={() => {
+                    stopWaiting(false)
+                    setEditing(null)
+                    setDeleted(null)
+                    chat.clear()
+                    resetView()
+                  }}
                 />
               </PopoverPortal>
             )}

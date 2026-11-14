@@ -246,3 +246,69 @@ test('reading earlier messages does not jump when a reply arrives', async ({ pag
     )
     .toBeLessThan(65)
 })
+
+test('merged settings share themes, palettes and basemaps and preserve clear-history confirmation', async ({
+  page,
+}) => {
+  await page.route('**/api/chat/ask', (route) => route.fulfill({ json: statistics }))
+  await authenticate(page)
+  const input = page.getByRole('textbox', { name: inputName })
+  await input.fill('Test motivu')
+  await input.press('Enter')
+  await expect(page.locator('.markdown h2')).toBeVisible()
+  await page.getByRole('button', { name: 'Nastavení', exact: true }).click()
+  await page.getByRole('radio', { name: 'Tmavý', exact: true }).check()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  expect(
+    await page.locator('.panel').evaluate((element) => getComputedStyle(element).backgroundColor),
+  ).toBe('rgb(23, 28, 24)')
+  await page.getByRole('radio', { name: 'Kontrastní', exact: true }).check()
+  expect(
+    await page.locator('html').evaluate((element) => element.style.getPropertyValue('--data-low')),
+  ).toBe('#fde737')
+  await page.getByRole('combobox', { name: 'Mapový podklad' }).selectOption('dark')
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem('kartogram:preferences:v1') ?? '{}').basemap,
+      ),
+    )
+    .toBe('dark')
+  await page.keyboard.press('Escape')
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await page.getByRole('button', { name: 'Nastavení', exact: true }).click()
+  await expect(page.getByRole('radio', { name: 'Kontrastní', exact: true })).toBeChecked()
+  await expect(page.getByRole('combobox', { name: 'Mapový podklad' })).toHaveValue('dark')
+  await page.getByRole('button', { name: 'Smazat historii konverzací', exact: true }).click()
+  await page.getByRole('button', { name: 'Zrušit', exact: true }).click()
+  await expect(page.locator('.msg--user')).toContainText('Test motivu')
+  await page.getByRole('button', { name: 'Smazat historii konverzací', exact: true }).click()
+  await page.getByRole('button', { name: 'Smazat', exact: true }).click()
+  await expect(page.locator('.msg--user')).toHaveCount(0)
+  await page.reload()
+  await expect(page.locator('.msg--user')).toHaveCount(0)
+})
+
+test('legacy web-design preferences migrate into the unified settings store', async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'settings',
+      JSON.stringify({
+        theme: 'dark',
+        palette: 'cividis',
+        basemap: 'dark',
+        towns: false,
+        text: 'large',
+        reduceMotion: true,
+      }),
+    ),
+  )
+  await authenticate(page)
+  await page.getByRole('button', { name: 'Nastavení', exact: true }).click()
+  await expect(page.getByRole('radio', { name: 'Tmavý', exact: true })).toBeChecked()
+  await expect(page.getByRole('radio', { name: 'Kontrastní', exact: true })).toBeChecked()
+  await expect(page.getByRole('combobox', { name: 'Mapový podklad' })).toHaveValue('dark')
+  await expect(page.getByLabel('Názvy měst', { exact: true })).not.toBeChecked()
+  await expect(page.getByRole('combobox', { name: 'Velikost textu' })).toHaveValue('large')
+})
