@@ -3,6 +3,8 @@
 -- Architecture: "Spatial-First, Relational-Enriched" (WGS84 EPSG:4326)
 -- ====================================================================
 
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
 -- --------------------------------------------------------------------
 -- 1. ČÍSELNÍKY A BYZNYSOVÁ PRAVIDLA (RELATIONAL ENRICHMENT)
 -- --------------------------------------------------------------------
@@ -50,19 +52,21 @@ CREATE TABLE IF NOT EXISTS ruian_obce (
     kod_okresu VARCHAR(10) REFERENCES okresy(kod_okresu),
     nazev VARCHAR(255) NOT NULL,
     okres VARCHAR(100),
-    geom GEOMETRY(MultiPolygon, 4326) NOT NULL
+    geom GEOMETRY(MultiPolygon, 4326)
 );
 -- Migration guard if table was created in an earlier flat schema version
 ALTER TABLE ruian_obce ADD COLUMN IF NOT EXISTS kod_okresu VARCHAR(10) REFERENCES okresy(kod_okresu);
+ALTER TABLE ruian_obce ALTER COLUMN geom DROP NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_ruian_obce_geom ON ruian_obce USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_ruian_obce_okres ON ruian_obce (kod_okresu);
 
 CREATE TABLE IF NOT EXISTS ruian_ku (
     kod_ku INTEGER PRIMARY KEY,
-    kod_obce INTEGER NOT NULL REFERENCES ruian_obce(kod_obce) ON DELETE CASCADE,
+    kod_obce INTEGER REFERENCES ruian_obce(kod_obce) ON DELETE CASCADE,
     nazev VARCHAR(255) NOT NULL,
     geom GEOMETRY(MultiPolygon, 4326)
 );
+ALTER TABLE ruian_ku ALTER COLUMN kod_obce DROP NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_ruian_ku_geom ON ruian_ku USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_ruian_ku_obec ON ruian_ku (kod_obce);
 

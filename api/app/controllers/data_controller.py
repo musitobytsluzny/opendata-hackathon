@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.dependencies import get_current_user
 from app.schemas.chat import Metric
@@ -24,6 +24,38 @@ def point(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180)
 
 @router.get("/prevalidate/parcel")
 def parcel(
-    kod_ku: int = Query(gt=0), cislo: str = Query(max_length=50, pattern=r"^[0-9]+(?:/[0-9]+)?$")
+    cislo: str = Query(max_length=50, pattern=r"^[0-9]+(?:/[0-9]+)?$"),
+    kod_ku: int | None = Query(default=None, gt=0),
+    nazev_ku: str | None = Query(default=None, max_length=100),
 ):
-    return geo_data.prevalidate_parcel(kod_ku, cislo)
+    if kod_ku is None and not nazev_ku:
+        raise HTTPException(400, "Je nutné zadat kod_ku nebo nazev_ku.")
+    return geo_data.prevalidate_parcel(kod_ku=kod_ku, cislo=cislo, nazev_ku=nazev_ku)
+
+
+@router.get("/prevalidate/address")
+def address(
+    adresa: str | None = Query(default=None, max_length=200),
+    cislo_popisne: int | None = Query(default=None, gt=0),
+    cislo_orientacni: int | None = Query(default=None, gt=0),
+    obec: str | None = Query(default=None, max_length=100),
+    ulice: str | None = Query(default=None, max_length=100),
+):
+    if not any([adresa, cislo_popisne, obec, ulice]):
+        raise HTTPException(400, "Je nutné zadat adresu nebo alespoň číslo popisné / obec / ulici.")
+    return geo_data.prevalidate_address(
+        adresa=adresa,
+        cislo_popisne=cislo_popisne,
+        cislo_orientacni=cislo_orientacni,
+        obec=obec,
+        ulice=ulice,
+    )
+
+
+@router.get("/amenities")
+def amenities(
+    query: str = Query(min_length=2, max_length=100),
+    obec: str | None = Query(default=None, max_length=100),
+    kategorie: str | None = Query(default=None, max_length=50),
+):
+    return geo_data.search_amenities(query=query, obec=obec, kategorie=kategorie)

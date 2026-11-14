@@ -179,7 +179,7 @@ BEGIN
         p.geom
     INTO v_parcel
     FROM ruian_parcely p
-    JOIN ruian_ku ku ON p.kod_ku = ku.kod_ku
+    LEFT JOIN ruian_ku ku ON p.kod_ku = ku.kod_ku
     LEFT JOIN ciselnik_druh_pozemku dp ON p.druh_pozemku_id = dp.id
     WHERE p.kod_ku = p_kod_ku AND p.cislo_parcely = p_cislo
     LIMIT 1;
