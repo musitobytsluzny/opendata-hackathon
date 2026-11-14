@@ -40,6 +40,62 @@ def register_geo_tools(server: FastMCP):
         return await _read(ctx, "/data/prevalidate/point", {"lat": lat, "lon": lon})
 
     @server.tool()
-    async def prevalidate_parcel(kod_ku: int, cislo: str, ctx: Context) -> dict:
-        """Read indicative parcel checks using cadastral-area code and parcel number, e.g. 1234/2."""
-        return await _read(ctx, "/data/prevalidate/parcel", {"kod_ku": kod_ku, "cislo": cislo})
+    async def prevalidate_parcel(
+        cislo: str,
+        kod_ku: int | None = None,
+        nazev_ku: str | None = None,
+        ctx: Context = None,
+    ) -> dict:
+        """Read indicative parcel checks using parcel number (cislo, e.g. '841/1' or '969')
+        and either cadastral-area code (kod_ku, e.g. 722618) or cadastral-area name
+        (nazev_ku, e.g. 'Bolevec', 'Plzeň').
+        """
+        params = {"cislo": cislo}
+        if kod_ku is not None:
+            params["kod_ku"] = kod_ku
+        if nazev_ku is not None:
+            params["nazev_ku"] = nazev_ku
+        return await _read(ctx, "/data/prevalidate/parcel", params)
+
+    @server.tool()
+    async def prevalidate_address(
+        adresa: str | None = None,
+        cislo_popisne: int | None = None,
+        cislo_orientacni: int | None = None,
+        obec: str | None = None,
+        ulice: str | None = None,
+        ctx: Context = None,
+    ) -> dict:
+        """Find parcel and read indicative spatial checks based on address or house number
+        (číslo popisné / orientační), street, and municipality (e.g. 'Bolevecká náves 1, Plzeň'
+        or cislo_popisne=1, obec='Plzeň').
+        """
+        params = {}
+        if adresa:
+            params["adresa"] = adresa
+        if cislo_popisne is not None:
+            params["cislo_popisne"] = cislo_popisne
+        if cislo_orientacni is not None:
+            params["cislo_orientacni"] = cislo_orientacni
+        if obec:
+            params["obec"] = obec
+        if ulice:
+            params["ulice"] = ulice
+        return await _read(ctx, "/data/prevalidate/address", params)
+
+    @server.tool()
+    async def search_amenities(
+        query: str,
+        obec: str | None = None,
+        kategorie: str | None = None,
+        ctx: Context = None,
+    ) -> dict:
+        """Search points of interest, facilities, schools, dormitories (domov mládeže),
+        healthcare, transport, or amenities by name, category, or municipality.
+        """
+        params = {"query": query}
+        if obec:
+            params["obec"] = obec
+        if kategorie:
+            params["kategorie"] = kategorie
+        return await _read(ctx, "/data/amenities", params)
