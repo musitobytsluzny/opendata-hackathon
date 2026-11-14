@@ -69,10 +69,7 @@ services:
       LLM_MAX_CONCURRENT: ${LLM_MAX_CONCURRENT:-4}
       MCP_SERVER_URL: http://mcp:8000/mcp/sse
     volumes:
-      - type: bind
-        source: ${GOOGLE_ADC_HOST_PATH:?Set the absolute VPS path to the read-only Google ADC JSON file}
-        target: /run/secrets/google-application-credentials.json
-        read_only: true
+      - "${GOOGLE_ADC_HOST_PATH:?Set the absolute VPS path to the read-only Google ADC JSON file}:/run/secrets/google-application-credentials.json:ro"
     depends_on:
       db:
         condition: service_healthy
