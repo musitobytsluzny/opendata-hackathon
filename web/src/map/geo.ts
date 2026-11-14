@@ -1,8 +1,12 @@
 import type { FeatureCollection, Polygon, MultiPolygon, Position } from 'geojson'
+import ceskoData from '../assets/geo/cesko.json'
 import krajData from '../assets/geo/plzensky-kraj.json'
 import okresyData from '../assets/geo/plzensky-kraj-okresy.json'
 
 type Props = { name: string; id: string; kind: string }
+
+export const cesko = ceskoData as unknown as import('geojson').Feature<Polygon | MultiPolygon>
+export const CZECH_CENTER: [number, number] = [15.3, 49.8]
 
 export const kraj = krajData as unknown as FeatureCollection<Polygon | MultiPolygon, Props>
 export const okresy = okresyData as unknown as FeatureCollection<Polygon | MultiPolygon, Props>
@@ -57,7 +61,7 @@ export function maskGeometry(): Polygon {
     [-180, -85],
   ]
   const holes: Position[][] = []
-  for (const f of kraj.features) {
+  for (const f of [cesko]) {
     if (f.geometry.type === 'Polygon') holes.push(f.geometry.coordinates[0])
     else for (const p of f.geometry.coordinates) holes.push(p[0])
   }

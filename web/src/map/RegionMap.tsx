@@ -5,16 +5,23 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
+  useState,
 } from 'react'
 import {
   Map as MlMap,
   Marker,
+  setWorkerUrl,
+  prewarm,
   type LngLatLike,
   type MapLayerMouseEvent,
   type StyleSpecification,
 } from 'maplibre-gl'
+import mapWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import 'maplibre-gl/dist/maplibre-gl.css'
+
 import {
+  CZECH_CENTER,
+  cesko,
   KRAJ_BOUNDS,
   OKRESY,
   OKRES_BOUNDS,
@@ -25,6 +32,11 @@ import {
   type OkresId,
 } from './geo'
 import './RegionMap.css'
+
+// Vite prebundles the library; its relative default worker URL would point into
+// .vite/deps. Resolve a real worker asset and reuse it across route transitions.
+setWorkerUrl(mapWorkerUrl)
+prewarm()
 
 export type RegionMapHandle = {
   fitKraj: () => void
@@ -53,6 +65,9 @@ export type RegionMapProps = {
   focused?: OkresId | null
   viewKey?: string
   label?: string
+  basemap?: 'satellite' | 'ortho'
+  reducedMotion?: boolean
+  onSelect?: (id: OkresId) => void
   className?: string
 }
 
@@ -61,11 +76,16 @@ const ORTOFOTO = 'https://ags.cuzk.cz/arcgis1/rest/services/ORTOFOTO_WM/MapServe
 const style: StyleSpecification = {
   version: 8,
   sources: {
+    cesko: {
+      type: 'geojson',
+      data: cesko,
+      attribution: 'Hranice ČR © Natural Earth (public domain)',
+    },
     s2: {
       type: 'raster',
       tiles: ['https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg'],
       tileSize: 256,
-      maxzoom: 14,
+      maxzoom: 10,
       attribution:
         '<a href="https://s2maps.eu" target="_blank" rel="noreferrer">Sentinel-2 cloudless</a> © EOX, Copernicus 2016',
     },
@@ -81,8 +101,15 @@ const style: StyleSpecification = {
   },
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': '#0d120e' } },
-    { id: 's2', type: 'raster', source: 's2', paint: { 'raster-fade-duration': 240 } },
-    { id: 'orto', type: 'raster', source: 'orto', paint: { 'raster-fade-duration': 240 } },
+    { id: 'land', type: 'fill', source: 'cesko', paint: { 'fill-color': '#273b2d' } },
+    { id: 's2', type: 'raster', source: 's2', paint: { 'raster-fade-duration': 120 } },
+    {
+      id: 'orto',
+      type: 'raster',
+      source: 'orto',
+      minzoom: 11,
+      paint: { 'raster-fade-duration': 120 },
+    },
   ],
 }
 
@@ -102,17 +129,22 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     focused = null,
     viewKey = 'default',
     label = 'Mapa Plzeňského kraje',
+    basemap = 'satellite',
+    reducedMotion = false,
+    onSelect,
     className,
   },
   ref,
 ) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<MlMap | null>(null)
-  const ready = useRef(false)
+  const [ready, setReady] = useState(false)
+  const [tileError, setTileError] = useState(false)
   const paddingRef = useRef(padding)
   const onHoverRef = useRef(onHover)
   const valueMarkers = useRef<Marker[]>([])
-  const pending = useRef<() => void>(() => {})
+  const onSelectRef = useRef(onSelect)
+  const motionRef = useRef(reducedMotion)
 
   const maskRef = useRef(maskOpacity)
   const labelRef = useRef(label)
@@ -121,7 +153,9 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     maskRef.current = maskOpacity
     onHoverRef.current = onHover
     labelRef.current = label
-  }, [padding, maskOpacity, onHover, label])
+    onSelectRef.current = onSelect
+    motionRef.current = reducedMotion
+  }, [padding, maskOpacity, onHover, label, onSelect, reducedMotion])
 
   const target = useRef<Target>({ kind: 'kraj' })
   const targetVersion = useRef(0)
@@ -136,7 +170,11 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     m.fitBounds(bounds, {
       padding: paddingRef.current,
       ...(t.kind === 'okres' ? { maxZoom: 11.5 } : {}),
-      duration,
+      duration:
+        motionRef.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 0
+          : duration,
+      bearing: 0,
       easing: EASE,
     })
   }, [])
@@ -172,6 +210,9 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
       dragRotate: false,
       pitchWithRotate: false,
       fadeDuration: 0,
+      pixelRatio: Math.min(window.devicePixelRatio || 1, interactive ? 2 : 1.25),
+      renderWorldCopies: false,
+      refreshExpiredTiles: false,
     })
     map.current = m
     m.touchZoomRotate?.disableRotation()
@@ -179,7 +220,17 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     m.getCanvas().setAttribute('role', 'img')
     if (!interactive) m.getCanvas().setAttribute('tabindex', '-1')
 
-    m.on('load', () => {
+    m.on('error', (event) => {
+      const sourceId = (event as unknown as { sourceId?: string }).sourceId
+      if (sourceId === 's2' || sourceId === 'orto') setTileError(true)
+    })
+    m.on('sourcedata', (event) => {
+      if ((event.sourceId === 's2' || event.sourceId === 'orto') && event.isSourceLoaded)
+        setTileError(false)
+    })
+
+    // Geometry must not wait for remote raster tiles.
+    m.once('style.load', () => {
       m.addSource('okresy', { type: 'geojson', data: okresy, promoteId: 'id' })
       m.addSource('mask', {
         type: 'geojson',
@@ -268,18 +319,21 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
           m.getCanvas().style.cursor = id ? 'pointer' : ''
           onHoverRef.current?.(id ?? null)
         })
+        m.on('click', 'okresy-fill', (e: MapLayerMouseEvent) => {
+          const id = e.features?.[0]?.properties?.id as OkresId | undefined
+          if (id && OKRESY[id]) onSelectRef.current?.(id)
+        })
         m.on('mouseleave', 'okresy-fill', () => {
           m.getCanvas().style.cursor = ''
           onHoverRef.current?.(null)
         })
       }
 
-      ready.current = true
-      pending.current()
+      setReady(true)
     })
 
     return () => {
-      ready.current = false
+      setReady(false)
       m.remove()
       map.current = null
     }
@@ -287,9 +341,9 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
 
   useEffect(() => {
     const m = map.current
-    if (!m || !ready.current) return
+    if (!m || !ready) return
     m.setPaintProperty('mask', 'fill-opacity', maskOpacity)
-  }, [maskOpacity])
+  }, [maskOpacity, ready])
 
   useEffect(() => {
     map.current?.getCanvas().setAttribute('aria-label', label)
@@ -336,13 +390,12 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
         }
       }
     }
-    if (ready.current) apply()
-    else pending.current = apply
-  }, [values, labels])
+    if (ready) apply()
+  }, [values, labels, ready])
 
   useEffect(() => {
     const m = map.current
-    if (!m || !ready.current) return
+    if (!m || !ready) return
     for (const id of Object.keys(OKRESY) as OkresId[]) {
       m.setFeatureState({ source: 'okresy', id }, { hover: id === hovered })
     }
@@ -351,7 +404,7 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
       el.classList.toggle('is-hovered', el.dataset.okres === hovered)
       el.classList.toggle('is-focused', el.dataset.okres === focused)
     })
-  }, [hovered, focused, values])
+  }, [hovered, focused, values, ready])
 
   useEffect(() => {
     const apply = () => {
@@ -361,32 +414,45 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
         m.setFeatureState({ source: 'okresy', id }, { focused: id === focused })
       }
     }
-    if (ready.current) apply()
-  }, [focused, values])
+    if (ready) apply()
+  }, [focused, values, ready])
 
   useEffect(() => {
     const m = map.current
-    if (!m || !drift) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (!m || !drift || !ready || reducedMotion) return
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
     let raf = 0
-    let last = performance.now()
-    const tick = (t: number) => {
-      const dt = t - last
-      if (document.hidden) {
-        last = t
-      } else if (dt >= 1000 / 30) {
-        last = t
-        m.setBearing(m.getBearing() + Math.min(dt, 100) * 0.0016)
+    let previous = 0
+    let elapsed = 0
+    const initialBearing = m.getBearing()
+    const tick = (time: number) => {
+      const dt = previous ? Math.min(time - previous, 100) : 0
+      previous = time
+      if (!document.hidden && !media.matches && !m.isMoving()) {
+        elapsed += dt
+        // Anchor rotation to Czechia, rather than the padded viewport center.
+        m.rotateTo(initialBearing + Math.sin(elapsed / 60000) * 7, {
+          around: CZECH_CENTER,
+          duration: 0,
+        })
       }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [drift, interactive])
+  }, [drift, interactive, ready, reducedMotion])
 
   useEffect(() => {
     const m = map.current
-    if (!m || !ready.current) {
+    if (!m || !ready) return
+    m.setLayerZoomRange('orto', basemap === 'ortho' ? 6 : 11, 24)
+    // Reuse coarse satellite tiles outside Czech ortho coverage.
+    m.setLayerZoomRange('s2', 0, 24)
+  }, [basemap, ready])
+
+  useEffect(() => {
+    const m = map.current
+    if (!m || !ready) {
       viewKeyRef.current = viewKey
       return
     }
@@ -412,11 +478,20 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
         return
       }
     }
-    frame(640)
-  }, [viewKey, padding.top, padding.right, padding.bottom, padding.left, frame])
+    frame(drift ? 0 : 640)
+  }, [viewKey, padding.top, padding.right, padding.bottom, padding.left, frame, ready, drift])
 
   const classes = ['region-map', labels ? 'region-map--values' : '', className ?? '']
     .filter(Boolean)
     .join(' ')
-  return <div ref={container} className={classes} role="region" aria-label={label} />
+  return (
+    <>
+      <div ref={container} className={classes} role="region" aria-label={label} />
+      {tileError && interactive && (
+        <p className="map-tile-status" role="status">
+          Snímky se načítají pomalu. Hranice a výsledky jsou dostupné.
+        </p>
+      )}
+    </>
+  )
 })

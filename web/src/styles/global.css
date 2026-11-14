@@ -131,3 +131,9 @@ input {
     transition-duration: 1ms !important;
   }
 }
+
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}

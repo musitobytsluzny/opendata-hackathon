@@ -6,7 +6,13 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type CSSProperties,
 } from 'react'
+import { AnswerView } from '../chat/AnswerView'
+import { SettingsPanel } from '../chat/SettingsPanel'
+import { usePreferences } from '../hooks/usePreferences'
+import { usePanelResize } from '../hooks/usePanelResize'
+import { apiFetch } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { Icon } from '../components/Icon'
 import {
@@ -15,8 +21,6 @@ import {
   ask,
   formatValue,
   normalize,
-  okresName,
-  type Answer,
   type Message,
 } from '../chat/assistant'
 import { RegionMap, type RegionMapHandle } from '../map/LazyRegionMap'
@@ -89,7 +93,7 @@ export function MapPage() {
   const { user, logout } = useAuth()
   const mapRef = useRef<RegionMapHandle>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const key = storageKey(user?.id)
   const [initial] = useState(() => {
     const stored = loadSessions(key)
@@ -139,26 +143,31 @@ export function MapPage() {
   const [draft, setDraft] = useState('')
   const [hovered, setHovered] = useState<OkresId | null>(null)
   const [focused, setFocused] = useState<OkresId | null>(null)
-  const [wide, setWide] = useState(false)
-  const [fading, setFading] = useState(false)
-  const fadeTimers = useRef<number[]>([])
-
-  function toggleWide() {
-    fadeTimers.current.forEach((t) => window.clearTimeout(t))
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setWide((w) => !w)
-      return
-    }
-    setFading(true)
-    fadeTimers.current = [
-      window.setTimeout(() => setWide((w) => !w), 180),
-      window.setTimeout(() => setFading(false), 180 + 460),
-    ]
-  }
-
-  useEffect(() => () => fadeTimers.current.forEach((t) => window.clearTimeout(t)), [])
+  const { preferences, update: updatePreference, reset: resetPreferences } = usePreferences()
   const [popover, setPopover] = useState<Popover>(null)
-  const [dimOutside, setDimOutside] = useState(true)
+  const [dataStatus, setDataStatus] = useState('Ověřuji data…')
+  useEffect(() => {
+    const request = new AbortController()
+    apiFetch<{ datasets: { row_count: number; data_kind: string }[] }>('/data/catalog', {
+      signal: request.signal,
+    })
+      .then(({ datasets }) => {
+        const loaded = datasets.filter(
+          (dataset) => dataset.row_count > 0 && dataset.data_kind !== 'reference',
+        )
+        setDataStatus(
+          !loaded.length
+            ? 'Data zatím nejsou načtená'
+            : loaded.some((dataset) => dataset.data_kind === 'demo')
+              ? 'Ukázková data'
+              : 'Data jsou dostupná',
+        )
+      })
+      .catch(() => {
+        if (!request.signal.aborted) setDataStatus('Dostupnost dat neověřena')
+      })
+    return () => request.abort()
+  }, [])
   const [isNarrow, setIsNarrow] = useState(() => window.matchMedia('(max-width: 720px)').matches)
   const [viewport, setViewport] = useState(() => ({
     width: window.innerWidth,
@@ -182,7 +191,35 @@ export function MapPage() {
     }
   }, [])
 
-  const expanded = wide && !isNarrow
+  const maxPanelWidth = Math.max(330, Math.round(viewport.width * 0.75))
+  const panelWidth = Math.max(330, Math.min(preferences.panelWidth, maxPanelWidth))
+  const { dragging, handle: resizeHandle } = usePanelResize(panelWidth, maxPanelWidth, (width) =>
+    updatePreference('panelWidth', width),
+  )
+  const expanded = panelWidth >= 560 && !isNarrow
+  const maximized = panelWidth >= maxPanelWidth - 2
+  function toggleWide() {
+    updatePreference('panelWidth', maximized ? 330 : maxPanelWidth)
+  }
+  const progress = (panelWidth - 330) / Math.max(1, maxPanelWidth - 330)
+  const compactInputWidth = Math.min(416, viewport.width - panelWidth - 48)
+  const wideInputWidth = Math.min(760, panelWidth - 48)
+  const rootStyle = {
+    '--panel-width': `${panelWidth}px`,
+    '--panel-top': `${16 * (1 - progress)}px`,
+    '--panel-bottom': `${80 * (1 - progress)}px`,
+    '--composer-left': `${((1 - progress) * (panelWidth + viewport.width)) / 2 + (progress * panelWidth) / 2}px`,
+    '--composer-width': `${compactInputWidth * (1 - progress) + wideInputWidth * progress}px`,
+  } as CSSProperties
+  const behavior =
+    preferences.reducedMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ? 'instant'
+      : 'smooth'
+  useLayoutEffect(() => {
+    if (!inputRef.current) return
+    inputRef.current.style.height = 'auto'
+    inputRef.current.style.height = `${Math.min(160, inputRef.current.scrollHeight)}px`
+  }, [draft])
 
   const series = useMemo(
     () =>
@@ -201,7 +238,7 @@ export function MapPage() {
     setActiveId(id)
     setHovered(null)
     showKraj()
-    document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior, block: 'nearest' })
   }
 
   function showKraj() {
@@ -234,22 +271,27 @@ export function MapPage() {
     () =>
       isNarrow
         ? { top: 16, right: 64, bottom: Math.round(viewport.height * 0.45) + 80, left: 16 }
-        : expanded
-          ? { top: 48, right: 72, bottom: 48, left: Math.round(viewport.width * 0.75) + 24 }
-          : { top: 32, right: 88, bottom: 96, left: 370 },
-    [isNarrow, expanded, viewport.width, viewport.height],
+        : { top: 32, right: 72, bottom: 96, left: panelWidth + 24 },
+    [isNarrow, panelWidth, viewport.height],
   )
 
   useEffect(() => {
-    if (messages.length === 0 && !loading) return
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, loading])
+    if (!preferences.autoScroll || (messages.length === 0 && !loading)) return
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior })
+  }, [messages, loading, preferences.autoScroll, behavior])
 
   useEffect(() => {
     if (!popover) return
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Element && !event.target.closest('.panel__head')) setPopover(null)
+    }
+    window.addEventListener('pointerdown', dismiss)
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setPopover(null)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', dismiss)
+    }
   }, [popover])
 
   const currentRef = useRef(currentId)
@@ -259,7 +301,7 @@ export function MapPage() {
 
   async function send(question: string) {
     const q = question.trim()
-    if (!q || requestRef.current) return
+    if (!q || q.length > 4000 || requestRef.current) return
     const request = new AbortController()
     requestRef.current = request
     const sid = currentId
@@ -281,7 +323,7 @@ export function MapPage() {
         activeId: answer.rows ? id : s.activeId,
         updatedAt: Date.now(),
       }))
-      if (answer.rows && currentRef.current === sid) showKraj()
+      if (answer.rows && preferences.autoFocus && currentRef.current === sid) showKraj()
     } catch (err) {
       if (request.signal.aborted) return
       const text = err instanceof Error ? err.message : 'Odpověď se nepodařilo načíst.'
@@ -291,8 +333,10 @@ export function MapPage() {
         updatedAt: Date.now(),
       }))
     } finally {
-      requestRef.current = null
-      if (!request.signal.aborted) setLoadingIn(null)
+      if (requestRef.current === request) {
+        requestRef.current = null
+        setLoadingIn(null)
+      }
     }
   }
 
@@ -357,30 +401,46 @@ export function MapPage() {
   }
 
   return (
-    <div className={expanded ? 'app app--expanded' : 'app'}>
+    <div
+      className={[
+        'app',
+        expanded ? 'app--expanded' : '',
+        dragging ? 'app--resizing' : '',
+        preferences.reducedMotion ? 'app--reduced-motion' : '',
+        preferences.textSize === 'large' ? 'app--large-text' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={rootStyle}
+    >
       <RegionMap
         ref={mapRef}
         values={values}
-        labels={labels}
+        labels={preferences.showLabels ? labels : null}
         hovered={hovered}
         onHover={setHovered}
         padding={padding}
         focused={focused}
-        viewKey={isNarrow ? 'mobile' : expanded ? 'expanded' : 'compact'}
+        viewKey={isNarrow ? 'mobile' : 'desktop'}
         label={
           latest?.metric
             ? `Mapa Plzeňského kraje, okresy obarvené podle: ${latest.metric}`
             : 'Mapa Plzeňského kraje'
         }
-        maskOpacity={dimOutside ? 0.68 : 0}
+        maskOpacity={preferences.dimOutside ? preferences.dimOpacity : 0}
+        showTowns={preferences.showTowns}
+        basemap={preferences.basemap}
+        reducedMotion={preferences.reducedMotion || dragging}
+        onSelect={(id) => {
+          setFocused(id)
+          mapRef.current?.focusOkres(id)
+        }}
         className={expanded ? 'region-map--compact' : undefined}
       />
       <div className="app__vignette" aria-hidden="true" />
 
       <aside
-        className={['panel', expanded ? 'panel--wide' : '', fading ? 'is-fading' : '']
-          .filter(Boolean)
-          .join(' ')}
+        className={['panel', expanded ? 'panel--wide' : ''].filter(Boolean).join(' ')}
         aria-label="Konverzace"
       >
         <header className="panel__head">
@@ -395,7 +455,9 @@ export function MapPage() {
           >
             <Icon name="settings" />
           </button>
-          <span className="panel__title">Ptej se kraje</span>
+          <span className="panel__title">
+            Kartogram<span className="panel__status">{dataStatus}</span>
+          </span>
           <div className="panel__tools" role="toolbar" aria-label="Konverzace">
             <button
               type="button"
@@ -423,40 +485,24 @@ export function MapPage() {
               <button
                 type="button"
                 className="icon-btn"
-                aria-label={wide ? 'Zúžit konverzaci' : 'Rozšířit konverzaci'}
-                title={wide ? 'Zúžit konverzaci' : 'Rozšířit konverzaci'}
-                aria-pressed={wide}
+                aria-label={maximized ? 'Zúžit konverzaci' : 'Rozšířit konverzaci'}
+                title={maximized ? 'Zúžit konverzaci' : 'Rozšířit konverzaci'}
+                aria-pressed={maximized}
                 onClick={toggleWide}
               >
-                <Icon name={wide ? 'collapse' : 'expand'} />
+                <Icon name={maximized ? 'collapse' : 'expand'} />
               </button>
             )}
           </div>
 
           {popover === 'settings' && (
-            <div
-              id="popover-settings"
-              className="popover popover--left"
-              role="dialog"
-              aria-label="Nastavení"
-            >
-              <p className="popover__who">
-                Přihlášen jako <strong>{user?.username}</strong>
-              </p>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={dimOutside}
-                  onChange={(e) => setDimOutside(e.target.checked)}
-                />
-                <span className="switch__track" aria-hidden="true" />
-                Ztmavit okolí kraje
-              </label>
-              <button type="button" className="popover__item" onClick={logout}>
-                <Icon name="logout" size={18} />
-                Odhlásit se
-              </button>
-            </div>
+            <SettingsPanel
+              preferences={preferences}
+              update={updatePreference}
+              reset={resetPreferences}
+              username={user?.username}
+              logout={logout}
+            />
           )}
 
           {popover === 'history' && (
@@ -520,7 +566,12 @@ export function MapPage() {
               <ul className="empty__list">
                 {SUGGESTIONS.map((s) => (
                   <li key={s}>
-                    <button type="button" className="suggestion" onClick={() => send(s)}>
+                    <button
+                      type="button"
+                      className="suggestion"
+                      disabled={Boolean(loadingIn)}
+                      onClick={() => send(s)}
+                    >
                       <span>{s}</span>
                       <Icon name="arrow" size={16} />
                     </button>
@@ -549,6 +600,7 @@ export function MapPage() {
                   {m.role === 'assistant' && (
                     <AnswerView
                       answer={m.answer}
+                      onAsk={loadingIn ? undefined : (question) => void send(question)}
                       hovered={active?.id === m.id ? hovered : null}
                       onHover={active?.id === m.id ? setHovered : () => {}}
                       focused={active?.id === m.id ? focused : null}
@@ -570,25 +622,49 @@ export function MapPage() {
               ))}
               {loading && (
                 <li className="msg msg--assistant" role="status">
-                  <p className="thinking">Hledám v otevřených datech</p>
+                  <p className="thinking">KartogramMCP hledá v datech</p>
                 </li>
               )}
             </ol>
           )}
         </div>
+        {!isNarrow && (
+          <div
+            className="panel__resize"
+            role="separator"
+            aria-label="Šířka konverzace"
+            aria-orientation="vertical"
+            aria-valuemin={330}
+            aria-valuemax={maxPanelWidth}
+            aria-valuenow={Math.round(panelWidth)}
+            tabIndex={0}
+            title="Tažením změňte šířku · dvojklik rozšíří chat"
+            {...resizeHandle}
+            onDoubleClick={toggleWide}
+          >
+            <span />
+          </div>
+        )}
       </aside>
 
       <form className="ask" onSubmit={onSubmit}>
         <label htmlFor="ask-input" className="sr-only">
           Dotaz na data Plzeňského kraje
         </label>
-        <input
+        <textarea
+          rows={1}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              void send(draft)
+            }
+          }}
           id="ask-input"
           ref={inputRef}
           className="ask__input"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Zeptejte se na cokoli o kraji…"
+          placeholder="Zeptejte se KartogramMCP…"
           autoComplete="off"
           maxLength={4000}
         />
@@ -600,6 +676,35 @@ export function MapPage() {
         >
           {loading ? <span className="spinner" aria-hidden="true" /> : <Icon name="send" />}
         </button>
+        {loadingIn && (
+          <button
+            type="button"
+            className="ask__stop"
+            aria-label="Zastavit čekání na odpověď"
+            onClick={() => {
+              requestRef.current?.abort()
+              requestRef.current = null
+              const sid = loadingIn
+              setLoadingIn(null)
+              updateSession(sid, (session) => ({
+                ...session,
+                messages: [
+                  ...session.messages,
+                  {
+                    id: uid(),
+                    role: 'error',
+                    text: 'Čekání na odpověď bylo zastaveno.',
+                    retry:
+                      [...session.messages].reverse().find((message) => message.role === 'user')
+                        ?.text ?? '',
+                  },
+                ],
+              }))
+            }}
+          >
+            <Icon name="close" size={18} />
+          </button>
+        )}
       </form>
 
       <div className="map-controls" role="group" aria-label="Ovládání mapy">
@@ -631,112 +736,6 @@ export function MapPage() {
           <Icon name="locate" />
         </button>
       </div>
-    </div>
-  )
-}
-
-function AnswerView({
-  answer,
-  hovered,
-  focused,
-  onHover,
-  onFocusOkres,
-  onShow,
-}: {
-  answer: Answer
-  hovered: OkresId | null
-  focused: OkresId | null
-  onHover: (id: OkresId | null) => void
-  onFocusOkres: (id: OkresId) => void
-  onShow?: () => void
-}) {
-  const max = answer.rows ? Math.max(...answer.rows.map((r) => Math.abs(r.value))) : 1
-  return (
-    <div className="answer">
-      <p>{answer.text}</p>
-      {answer.rows && (
-        <figure className="answer__data">
-          <figcaption>{answer.metric}</figcaption>
-          <table className="tabular">
-            <caption className="sr-only">
-              {answer.metric}. Kliknutím na okres na něj přiblížíte mapu.
-            </caption>
-            <thead className="sr-only">
-              <tr>
-                <th scope="col">Okres</th>
-                <th scope="col">Poměr</th>
-                <th scope="col">Hodnota</th>
-              </tr>
-            </thead>
-            <tbody>
-              {answer.rows.map((r) => (
-                <tr
-                  key={r.okres}
-                  className={
-                    [
-                      hovered === r.okres ? 'is-hovered' : '',
-                      focused === r.okres ? 'is-focused' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ') || undefined
-                  }
-                  onMouseEnter={() => onHover(r.okres)}
-                  onMouseLeave={() => onHover(null)}
-                  onClick={() => onFocusOkres(r.okres)}
-                >
-                  <th scope="row">
-                    <button
-                      type="button"
-                      className="okres-btn"
-                      aria-pressed={focused === r.okres}
-                      aria-label={
-                        focused === r.okres
-                          ? `${okresName(r.okres)}, ${formatValue(r.value, answer.unit, answer.signed)}. Zpět na celý kraj`
-                          : `${okresName(r.okres)}, ${formatValue(r.value, answer.unit, answer.signed)}. Přiblížit mapu na okres`
-                      }
-                      onFocus={() => onHover(r.okres)}
-                      onBlur={() => onHover(null)}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onFocusOkres(r.okres)
-                      }}
-                    >
-                      {okresName(r.okres)}
-                    </button>
-                  </th>
-                  <td className="answer__bar" aria-hidden="true">
-                    <span
-                      className={r.value < 0 ? 'bar bar--neg' : 'bar'}
-                      style={{ width: `${(Math.abs(r.value) / max) * 100}%` }}
-                    />
-                  </td>
-                  <td className="answer__val">
-                    {formatValue(r.value, answer.unit, answer.signed)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </figure>
-      )}
-      {answer.source && (
-        <p className="source">
-          <Icon name="database" size={16} />
-          <span>
-            <span className="sr-only">Zdroj dat: </span>
-            {answer.source.publisher} · {answer.source.name} · {answer.source.period}
-          </span>
-        </p>
-      )}
-      {onShow && (
-        <button type="button" className="show-on-map" onClick={onShow}>
-          <Icon name="locate" size={16} />
-          Zobrazit na mapě
-        </button>
-      )}
-      {answer.sample && (
-        <p className="sample">Ukázková data, napojení na skutečné zdroje se připravuje.</p>
-      )}
     </div>
   )
 }

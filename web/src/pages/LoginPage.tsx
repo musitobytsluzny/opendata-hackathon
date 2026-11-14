@@ -82,7 +82,7 @@ export function LoginPage() {
       <div className="auth__vignette" aria-hidden="true" />
 
       <Link href={routes.landing} className="auth__brand">
-        Ptej se kraje
+        Kartogram
       </Link>
 
       <div className="auth__statement">

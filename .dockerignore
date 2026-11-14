@@ -19,3 +19,6 @@
 backups
 etl/data
 etl/output
+
+**/playwright-report/
+**/test-results/

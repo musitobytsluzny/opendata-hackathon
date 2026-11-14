@@ -1,4 +1,4 @@
-# OpenData
+# Kartogram
 
 React/Vite, FastAPI, MCP a PostgreSQL s PostGIS a pgvector za nginxem.
 Jednorázové ETL připravuje místo pro import / seed dat.
@@ -46,3 +46,29 @@ Podrobnosti: [infrastruktura](infra/README.md), [ETL](etl/README.md).
 Gemini AI Studio se nastavuje přes `GEMINI_API_KEY` v kořenovém `.env`.
 Po `make up` ověř přístup pomocí `make check-gemini`. Web nikdy nedostává API klíč.
 Podrobnosti o MCP nástrojích, datech a limitech jsou v [API README](api/README.md).
+
+## Frontend
+
+Kartogram zachovává mapové rozhraní; datový asistent v chatu se jmenuje KartogramMCP.
+Odpovědi podporují Markdown a tabulky, kopírování, CSV export i navazující dotazy.
+Enter odešle dotaz, Shift+Enter vloží nový řádek. Tlačítko zastavení ukončí čekání
+v prohlížeči; již spuštěné zpracování na serveru může doběhnout.
+
+Šířku chatu lze měnit tažením pravého okraje, šipkami po jeho zaměření nebo tlačítkem
+rozšíření. Home/End nastaví minimální/maximální šířku. Nastavení se ukládá v prohlížeči:
+ztmavení států mimo ČR, intenzita, názvy měst, hodnoty, mapový podklad, automatické
+centrování/posouvání, velikost textu a omezení animací.
+
+Mapový worker je samostatný lokální asset; hranice a výsledky nečekají na vzdálené
+snímky. Přehled používá satelitní podklad, ortofoto se automaticky přidává od zoomu 11
+nebo lze zapnout ručně. Hranice ČR a jejich původ: [zdroje geometrie](web/src/assets/geo/SOURCES.md).
+
+Prohlížečové regresní testy běží nad produkčním sestavením, s testovacími API odpověďmi
+a záměrně vypnutými vzdálenými dlaždicemi:
+
+```sh
+cd web
+npm ci
+npx playwright install chromium
+npm run test:e2e
+```
