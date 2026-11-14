@@ -14,6 +14,8 @@ def dataset_catalog():
 
 @router.get("/statistics")
 def district_statistics(metric: Metric):
+    if metric == "area_m2":
+        raise HTTPException(422, "Pro rozlohu jednotlivých obcí použijte municipality_statistics.")
     return geo_data.statistics(metric)
 
 

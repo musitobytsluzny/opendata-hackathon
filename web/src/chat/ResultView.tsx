@@ -39,6 +39,28 @@ export function ResultView({
   const points = rows
     .filter((row) => typeof row[valueKey] === 'number')
     .map((row) => ({ label: String(row[labelKey] ?? ''), value: row[valueKey] as number }))
+  const total = points.reduce((sum, point) => sum + point.value, 0)
+  const canPie =
+    Boolean(artifact.columns.find((column) => column.key === valueKey)?.additive) &&
+    points.length === rows.length &&
+    points.length >= 2 &&
+    points.length <= 12 &&
+    points.every((point) => point.value >= 0) &&
+    total > 0
+  const colors = [
+    '#78936b',
+    '#c19c64',
+    '#6997ad',
+    '#ae7f9d',
+    '#8b85b2',
+    '#9a9e56',
+    '#559284',
+    '#b77b67',
+    '#74829c',
+    '#ab946e',
+    '#89749a',
+    '#6c9d55',
+  ]
   const low = Math.min(0, ...points.map((point) => point.value)),
     high = Math.max(0, ...points.map((point) => point.value))
   const span = high - low || 1
@@ -87,6 +109,11 @@ export function ResultView({
               Spojnice
             </button>
           </>
+        )}
+        {canPie && (
+          <button type="button" aria-pressed={view === 'pie'} onClick={() => setView('pie')}>
+            Koláč
+          </button>
         )}
         {artifact.features.length > 0 && (
           <button type="button" onClick={() => onMap(artifact)}>
@@ -176,6 +203,50 @@ export function ResultView({
               ))}
             </tbody>
           </table>
+        </div>
+      ) : view === 'pie' && canPie ? (
+        <div className="result-view__pie">
+          <svg viewBox="0 0 220 220" role="img" aria-label={`${artifact.title}, koláčový graf`}>
+            <title>{artifact.title}, podíly součtu vybraných položek</title>
+            {points.map((point, index) => {
+              const share = (point.value / total) * 100
+              const offset =
+                (points.slice(0, index).reduce((sum, item) => sum + item.value, 0) / total) * 100
+              return (
+                <circle
+                  key={index}
+                  cx="110"
+                  cy="110"
+                  r="50"
+                  fill="none"
+                  stroke={colors[index]}
+                  strokeWidth="100"
+                  pathLength="100"
+                  strokeDasharray={`${share} ${100 - share}`}
+                  strokeDashoffset={-offset}
+                  transform="rotate(-90 110 110)"
+                >
+                  <title>
+                    {point.label}: {formatValue(point.value, unit)} ({formatValue(share, '%')})
+                  </title>
+                </circle>
+              )
+            })}
+          </svg>
+          <ul>
+            {points.map((point, index) => (
+              <li key={index}>
+                <i style={{ background: colors[index] }} />
+                <span>{point.label}</span>
+                <strong>
+                  {formatValue(point.value, unit)} · {formatValue((point.value / total) * 100, '%')}
+                </strong>
+              </li>
+            ))}
+          </ul>
+          <p className="result-view__note">
+            Podíly ze součtu zobrazených {points.length} položek, nikoliv z celého kraje.
+          </p>
         </div>
       ) : view === 'bar' ? (
         <div

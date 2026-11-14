@@ -199,3 +199,35 @@ test('a new map answer replaces previous results instead of replaying history', 
   await expect(page.locator('.map-layers input:checked')).toHaveCount(1)
   await expect(page.locator('.workspace-map-label')).toHaveCount(1)
 })
+
+test('pie charts show verified shares of the selected subset and focus the chart', async ({
+  page,
+}) => {
+  await page.route('**/api/chat/ask', (route) =>
+    route.fulfill({
+      json: {
+        text: 'Podíly vybraných obcí.',
+        sample: false,
+        artifacts: [
+          {
+            ...result,
+            view: 'pie',
+            value_key: 'value',
+            label_key: 'name',
+            columns: result.columns.map((column) => ({ ...column, additive: column.numeric })),
+          },
+        ],
+      },
+    }),
+  )
+  await authenticate(page)
+  const input = page.getByRole('textbox', { name: 'Dotaz na data Plzeňského kraje' })
+  await input.fill('Koláč obyvatel')
+  await input.press('Enter')
+  await expect(page.getByRole('img', { name: /koláčový graf/ })).toBeVisible()
+  await expect(page.locator('.result-view__pie li').first()).toContainText('75')
+  await expect(page.locator('.result-view__pie')).toContainText('nikoliv z celého kraje')
+  await expect(page.locator('.result-view')).toBeFocused()
+  await page.getByRole('button', { name: 'Sloupce', exact: true }).click()
+  await expect(page.getByRole('img', { name: /sloupcový graf/ })).toBeVisible()
+})

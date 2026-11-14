@@ -56,3 +56,10 @@ porovnání. Kliknutí používá skutečné souřadnice mapy, dotazuje lokáln�
 chybějících datech ČÚZK. Shody na hranici nejsou automaticky redukované na první
 parcelu. Prověření a porovnání se spouští tlačítkem do chatu. Posouzení zůstává
 orientační a závisí na pokrytí podkladových vrstev.
+
+`show_chart` používá ve výchozím stavu `kind=auto`: sloupce pro kategoriální srovnání,
+spojnici pro seřazené časové údaje. Výslovně lze zvolit `pie`, pokud sloupec obsahuje
+sčitatelné nezáporné hodnoty a výběr má 2–12 položek. Podíly odpovídají součtu výběru,
+nikoliv automaticky celému kraji. Procentní ukazatele a indexy se neskládají do koláče.
+`municipality_statistics(metric="area_m2")` počítá rozlohu správního území obce pomocí
+PostGIS `ST_Area(geom::geography)`; nejde o rozlohu samotné zástavby.

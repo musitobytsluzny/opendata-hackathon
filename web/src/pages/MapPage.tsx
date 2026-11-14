@@ -396,7 +396,9 @@ export function MapPage() {
         updatedAt: Date.now(),
       }))
       if (preferences.autoFocus && currentRef.current === sid) {
-        const chart = answer.artifacts?.some((item) => item.view === 'bar' || item.view === 'line')
+        const chart = answer.artifacts?.some(
+          (item) => item.view === 'bar' || item.view === 'line' || item.view === 'pie',
+        )
         const mapResult = answer.artifacts?.some(
           (item) => item.view === 'map' && item.features.length,
         )

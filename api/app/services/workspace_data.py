@@ -123,10 +123,16 @@ def place_geometry(place_id):
 
 
 def municipality_statistics(metric, district=None, limit=20, descending=True):
-    if metric not in METRICS:
+    if metric not in METRICS and metric != "area_m2":
         raise HTTPException(422, "Neznámá metrika.")
-    table, _, title, _, unit = METRICS[metric]
+    table, _, title, _, unit = (
+        METRICS[metric] if metric != "area_m2" else ("ruian_obce", "", "Rozloha obce", "", "m²")
+    )
+    source = (
+        f"{table} s JOIN ruian_obce o USING(kod_obce)" if metric != "area_m2" else "ruian_obce o"
+    )
     expressions = {
+        "area_m2": "ST_Area(o.geom::geography)",
         "population": "s.pocet_obyvatel",
         "seniors_pct": "100.0*s.seniori_65_plus/NULLIF(s.pocet_obyvatel,0)",
         "children_pct": "100.0*s.deti_0_14/NULLIF(s.pocet_obyvatel,0)",
@@ -141,7 +147,7 @@ def municipality_statistics(metric, district=None, limit=20, descending=True):
                 text(f"""
             SELECT o.kod_obce, o.nazev, d.nazev AS district, {expression} AS value,
                    ST_AsGeoJSON(ST_PointOnSurface(o.geom)) AS point
-            FROM {table} s JOIN ruian_obce o USING(kod_obce)
+            FROM {source}
             JOIN okresy d USING(kod_okresu)
             WHERE (CAST(:district AS text) IS NULL OR unaccent(d.nazev)=unaccent(:district))
               AND {expression} IS NOT NULL
@@ -168,7 +174,11 @@ def municipality_statistics(metric, district=None, limit=20, descending=True):
     return result(
         title,
         rows,
-        [column("name", "Obec"), column("district", "Okres"), column("value", title, True, unit)],
+        [
+            column("name", "Obec"),
+            column("district", "Okres"),
+            dict(column("value", title, True, unit), additive=metric in {"population", "area_m2"}),
+        ],
         features,
         [table, "ruian_obce"],
         f"Výběr nejvýše {limit} obcí s dostupnou hodnotou; nejde o součet celého kraje.",

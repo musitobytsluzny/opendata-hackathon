@@ -89,3 +89,33 @@ class ChatResultTests(unittest.TestCase):
         second.columns[1].unit = "km"
         with self.assertRaises(ValueError):
             results.combine({"result_ids": list(context)}, context, 1)
+
+    def test_auto_chart_uses_comparison_bars_and_ordered_time_lines(self):
+        item = results.remember(self.data, 1)
+        intent = {
+            "result_id": item.result_id,
+            "view": "auto",
+            "value_key": "value",
+            "label_key": "name",
+        }
+        self.assertEqual(results.present(intent, {item.result_id: item}).view, "bar")
+        item.columns[0].key = "year"
+        item.rows = [{"year": "2024", "value": 2}, {"year": "2025", "value": 9}]
+        intent["label_key"] = "year"
+        self.assertEqual(results.present(intent, {item.result_id: item}).view, "line")
+
+    def test_pie_requires_additive_nonnegative_values(self):
+        item = results.remember(self.data, 1)
+        intent = {
+            "result_id": item.result_id,
+            "view": "pie",
+            "value_key": "value",
+            "label_key": "name",
+        }
+        with self.assertRaises(ValueError):
+            results.present(intent, {item.result_id: item})
+        item.columns[1].additive = True
+        self.assertEqual(results.present(intent, {item.result_id: item}).view, "pie")
+        item.rows[0]["value"] = -1
+        with self.assertRaises(ValueError):
+            results.present(intent, {item.result_id: item})

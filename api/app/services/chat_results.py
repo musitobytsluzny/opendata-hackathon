@@ -45,15 +45,35 @@ def present(intent, results):
     if artifact is None:
         raise ValueError("Výsledek neexistuje nebo vypršel; nejprve znovu načti data.")
     view = intent.get("view")
-    if view not in {"table", "map", "bar", "line"}:
+    if view == "auto":
+        label_key = intent.get("label_key")
+        labels = [str(row.get(label_key, "")) for row in artifact.rows]
+        temporal = (
+            label_key in {"year", "date", "rok", "datum"}
+            and len(set(labels)) > 1
+            and labels == sorted(labels)
+        )
+        view = "line" if temporal else "bar"
+    if view not in {"table", "map", "bar", "line", "pie"}:
         raise ValueError("Neznámý typ zobrazení.")
     if view == "map" and not artifact.features:
         raise ValueError("Výsledek nemá geometrii pro mapu.")
-    if view in {"bar", "line"}:
+    if view in {"bar", "line", "pie"}:
         columns = {column.key: column for column in artifact.columns}
         value = columns.get(intent.get("value_key"))
         if value is None or not value.numeric or intent.get("label_key") not in columns:
             raise ValueError("Graf vyžaduje existující číselný sloupec a sloupec popisků.")
+    if view == "pie":
+        values = [row.get(value.key) for row in artifact.rows]
+        if (
+            not value.additive
+            or not 2 <= len(values) <= 12
+            or any(not isinstance(v, (int, float)) or isinstance(v, bool) or v < 0 for v in values)
+            or sum(values) <= 0
+        ):
+            raise ValueError(
+                "Koláč vyžaduje 2–12 nezáporných sčitatelných hodnot s kladným součtem. Pro procenta, indexy nebo chybějící hodnoty použij sloupce."
+            )
     return ChatArtifact.model_validate(
         dict(
             artifact.model_dump(),

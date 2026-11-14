@@ -126,7 +126,7 @@ def register_geo_tools(server: FastMCP):
     ) -> dict:
         """Rank individual municipalities by a loaded metric (population, seniors_pct,
         children_pct, greenery_pct, ndvi). Optional exact Czech district name; limit <=50.
-        Returns verified rows suitable for tables, charts and map points.
+        Also supports area_m2 computed from real municipality polygons. Returns verified rows suitable for tables, charts and map points.
         """
         params = {"metric": metric, "limit": limit, "descending": descending}
         if district:
@@ -180,8 +180,10 @@ def register_geo_tools(server: FastMCP):
         return {"presentation": {"result_id": result_id, "view": "table"}}
 
     @server.tool()
-    async def show_chart(result_id: str, value_key: str, label_key: str, kind: str = "bar") -> dict:
-        """Display a bar or line chart of a verified result. Use actual numeric value_key and
+    async def show_chart(
+        result_id: str, value_key: str, label_key: str, kind: str = "auto"
+    ) -> dict:
+        """Display an auto-selected, bar, line or pie chart of a verified result. Use actual numeric value_key and
         label_key from its columns. A line chart preserves returned row order; don't imply a time trend for unordered categories.
         """
         return {

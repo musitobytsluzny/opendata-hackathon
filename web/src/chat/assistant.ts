@@ -7,8 +7,8 @@ export type AnswerRow = { okres: OkresId; value: number }
 export type Artifact = {
   result_id: string
   title: string
-  view: 'table' | 'map' | 'bar' | 'line'
-  columns: { key: string; label: string; numeric: boolean; unit: string }[]
+  view: 'table' | 'map' | 'bar' | 'line' | 'pie'
+  columns: { key: string; label: string; numeric: boolean; additive?: boolean; unit: string }[]
   rows: Record<string, string | number | boolean | null>[]
   features: Feature[]
   sources: { table_name?: string; name?: string; data_kind?: string; loaded_at?: string }[]

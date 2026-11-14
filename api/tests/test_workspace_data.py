@@ -156,3 +156,18 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(len(result["features"]), 1)
         self.assertEqual(result["features"][0]["geometry"]["type"], "Polygon")
         self.assertIn("omezený na 1", result["note"])
+
+    def test_area_is_computed_from_boundaries_without_demographic_data(self):
+        with self.db.begin() as connection:
+            connection.execute(text("DELETE FROM csu_demografie_obce"))
+            connection.execute(
+                text(
+                    "UPDATE ruian_obce SET geom=ST_MakeEnvelope(13,49,13.01,49.01,4326) WHERE kod_obce=1"
+                )
+            )
+        data = workspace.municipality_statistics("area_m2", limit=1)["result"]
+        self.assertEqual(data["rows"][0]["id"], "obec:1")
+        self.assertGreater(data["rows"][0]["value"], 700000)
+        self.assertLess(data["rows"][0]["value"], 900000)
+        self.assertTrue(data["columns"][-1]["additive"])
+        self.assertEqual(data["columns"][-1]["unit"], "m²")

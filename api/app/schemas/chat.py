@@ -12,7 +12,7 @@ DistrictId = Literal[
     "CZ0326000000",
     "CZ0327000000",
 ]
-Metric = Literal["population", "seniors_pct", "children_pct", "greenery_pct", "ndvi"]
+Metric = Literal["population", "seniors_pct", "children_pct", "greenery_pct", "ndvi", "area_m2"]
 
 
 class HistoryMessage(BaseModel):
@@ -63,13 +63,14 @@ class ResultColumn(BaseModel):
     key: str = Field(min_length=1, max_length=60)
     label: str = Field(max_length=160)
     numeric: bool = False
+    additive: bool = False
     unit: str = Field(default="", max_length=30)
 
 
 class ChatArtifact(BaseModel):
     result_id: str = Field(max_length=60)
     title: str = Field(max_length=300)
-    view: Literal["table", "map", "bar", "line"] = "table"
+    view: Literal["table", "map", "bar", "line", "pie"] = "table"
     columns: list[ResultColumn] = Field(max_length=8)
     rows: list[dict[str, str | Annotated[float, Field(allow_inf_nan=False)] | bool | None]] = Field(
         max_length=50
