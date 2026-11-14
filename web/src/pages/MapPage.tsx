@@ -67,6 +67,8 @@ export function MapPage() {
   const mapMode = mapInteraction.session === currentId ? mapInteraction.mode : 'navigate'
   function setMapMode(mode: 'navigate' | 'parcel' | 'compare') {
     parcelRequest.current?.abort()
+    workspace.clear()
+    setParcelSelection({ session: currentId, items: [] })
     setMapInteraction({ session: currentId, mode })
   }
   const [parcelFeedback, setParcelFeedback] = useState({ session: currentId, text: '' })
@@ -76,8 +78,15 @@ export function MapPage() {
   }
   const [parcelSelection, setParcelSelection] = useState<{
     session: string
-    items: { number: string; ku: string }[]
+    items: { number: string; ku: string; artifact: Artifact }[]
   }>({ session: currentId, items: [] })
+  const [selectionSession, setSelectionSession] = useState(currentId)
+  if (selectionSession !== currentId) {
+    setSelectionSession(currentId)
+    setMapInteraction({ session: currentId, mode: 'navigate' })
+    setParcelSelection({ session: currentId, items: [] })
+    setParcelFeedback({ session: currentId, text: '' })
+  }
   useEffect(() => () => parcelRequest.current?.abort(), [])
   useEffect(() => {
     parcelRequest.current?.abort()
@@ -87,6 +96,10 @@ export function MapPage() {
   const selectedParcels = parcelSelection.session === currentId ? parcelSelection.items : []
   async function selectParcel(lon: number, lat: number) {
     if (mapMode === 'navigate') return
+    if (mapMode === 'parcel' || selectedParcels.length >= 2) {
+      workspace.clear()
+      setParcelSelection({ session: currentId, items: [] })
+    }
     parcelRequest.current?.abort()
     const request = new AbortController()
     parcelRequest.current = request
@@ -102,7 +115,6 @@ export function MapPage() {
         setParcelStatus('V tomto místě nebyla nalezena parcela.')
         return
       }
-      workspace.show({ ...result, view: 'map' })
       update(sessionId, (session) => ({
         ...session,
         messages: [
@@ -116,24 +128,30 @@ export function MapPage() {
                   ? 'Vybraná parcela z mapy.'
                   : 'Kliknutí odpovídá více parcelám. Pro jednoznačný výběr klikněte dovnitř parcely.',
               sample: result.sample,
-              artifacts: [{ ...result, view: 'map' }],
+              artifacts: [{ ...result, view: 'table' }],
             },
           },
         ],
         updatedAt: Date.now(),
       }))
       if (result.rows.length !== 1) {
+        workspace.show(result)
         setParcelStatus('Na hranici je více parcel. Klikněte dovnitř konkrétní parcely.')
         return
       }
       const row = result.rows[0]
-      const selection = { number: String(row.name), ku: String(row.kod_ku) }
+      const selection = { number: String(row.name), ku: String(row.kod_ku), artifact: result }
       const previous =
-        mapMode === 'compare' && parcelSelection.session === sessionId ? parcelSelection.items : []
+        mapMode === 'compare' &&
+        parcelSelection.session === sessionId &&
+        parcelSelection.items.length < 2
+          ? parcelSelection.items
+          : []
       const items = [
         ...previous.filter((item) => item.number !== selection.number || item.ku !== selection.ku),
         selection,
       ].slice(-2)
+      workspace.showSelection(items.map((item) => item.artifact))
       setParcelSelection({ session: sessionId, items })
       setParcelStatus(
         mapMode === 'compare'

@@ -7,6 +7,7 @@ export function useMapLayers(messages: Message[], sessionId: string) {
     const layers = new Map<string, { artifact: Artifact; visible: boolean; action: string }>()
     for (const message of messages) {
       if (message.role !== 'assistant') continue
+      if (message.answer.artifacts?.some((artifact) => artifact.view === 'map')) layers.clear()
       for (const artifact of message.answer.artifacts ?? [])
         if (artifact.view === 'map')
           layers.set(artifact.result_id, { artifact, visible: true, action: message.id })
@@ -20,18 +21,34 @@ export function useMapLayers(messages: Message[], sessionId: string) {
   }, [messages])
   const [manual, setManual] = useState<{
     session: string
+    baseAction?: string
     added: Artifact[]
     visibility: Record<string, { visible: boolean; action: string }>
     focus?: Artifact
     afterAction?: string
     version: number
   }>({ session: sessionId, added: [], visibility: {}, version: 0 })
+  if (manual.session !== sessionId) {
+    setManual({
+      session: sessionId,
+      baseAction: base.at(-1)?.action,
+      added: [],
+      visibility: {},
+      version: 0,
+    })
+  }
   const current = useMemo(
     () =>
-      manual.session === sessionId
+      manual.session === sessionId && manual.baseAction === base.at(-1)?.action
         ? manual
-        : { session: sessionId, added: [], visibility: {}, version: 0 },
-    [manual, sessionId],
+        : {
+            session: sessionId,
+            baseAction: base.at(-1)?.action,
+            added: [],
+            visibility: {},
+            version: 0,
+          },
+    [manual, sessionId, base],
   )
   const layers = useMemo(() => {
     const merged = new Map(base.map((layer) => [layer.artifact.result_id, layer]))
@@ -52,17 +69,38 @@ export function useMapLayers(messages: Message[], sessionId: string) {
       }
     })
   }, [base, current])
-  function show(artifact: Artifact) {
-    const action =
-      base.find((layer) => layer.artifact.result_id === artifact.result_id)?.action ?? ''
-    setManual({
-      ...current,
-      added: [...current.added.filter((item) => item.result_id !== artifact.result_id), artifact],
-      visibility: { ...current.visibility, [artifact.result_id]: { visible: true, action } },
-      focus: artifact,
+  function showSelection(artifacts: Artifact[]) {
+    setManual((previous) => ({
+      session: sessionId,
+      baseAction: base.at(-1)?.action,
+      added: artifacts,
+      visibility: Object.fromEntries([
+        ...base.map(
+          (layer) => [layer.artifact.result_id, { visible: false, action: layer.action }] as const,
+        ),
+        ...artifacts.map(
+          (artifact) =>
+            [
+              artifact.result_id,
+              {
+                visible: true,
+                action:
+                  base.find((layer) => layer.artifact.result_id === artifact.result_id)?.action ??
+                  '',
+              },
+            ] as const,
+        ),
+      ]),
+      focus: artifacts.at(-1),
       afterAction: base.at(-1)?.action,
-      version: current.version + 1,
-    })
+      version: previous.version + 1,
+    }))
+  }
+  function show(artifact: Artifact) {
+    showSelection([artifact])
+  }
+  function clear() {
+    showSelection([])
   }
   function toggle(id: string, visible: boolean) {
     const action = layers.find((layer) => layer.artifact.result_id === id)?.action ?? ''
@@ -91,6 +129,8 @@ export function useMapLayers(messages: Message[], sessionId: string) {
     layers,
     features,
     show,
+    showSelection,
+    clear,
     toggle,
     focusFeatures: focus?.features,
     focusKey: `${sessionId}:${latest?.action ?? ''}:${current.version}`,

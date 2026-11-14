@@ -146,5 +146,56 @@ test('parcel selection uses actual click coordinates and comparison requires two
   await expect(page.getByRole('button', { name: 'Prověřit v chatu' })).toBeDisabled()
   await canvas.click({ position: { x: 1050, y: 500 }, force: true })
   await expect(page.getByRole('button', { name: 'Porovnat v chatu' })).toBeEnabled()
-  await page.screenshot({ path: '/tmp/kartogram-map-actions.png' })
+  await expect(page.locator('.map-layers input:checked')).toHaveCount(2)
+  await canvas.click({ position: { x: 1060, y: 510 }, force: true })
+  await expect(page.getByRole('button', { name: 'Prověřit v chatu' })).toBeDisabled()
+  await expect(page.locator('.map-layers input:checked')).toHaveCount(1)
+  await expect(page.locator('.workspace-map-label')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Vybrat parcelu', exact: true }).click()
+  await expect(page.locator('.map-layers input:checked')).toHaveCount(0)
+  await expect(page.locator('.workspace-map-label')).toHaveCount(0)
+})
+
+test('a new map answer replaces previous results instead of replaying history', async ({
+  page,
+}) => {
+  let call = 0
+  await page.route('**/api/chat/ask', (route) => {
+    call++
+    return route.fulfill({
+      json: {
+        text: 'Nový výsledek.',
+        sample: false,
+        artifacts: [
+          { ...result, result_id: `result-${call}`, title: `Výsledek ${call}`, view: 'map' },
+        ],
+      },
+    })
+  })
+  await authenticate(page)
+  const input = page.getByRole('textbox', { name: 'Dotaz na data Plzeňského kraje' })
+  await input.fill('První výsledek')
+  await input.press('Enter')
+  await expect(page.locator('.result-view')).toHaveCount(1)
+  await page.locator('.map-layers summary').click()
+  await expect(page.getByRole('checkbox', { name: 'Výsledek 1' })).toBeChecked()
+  await input.fill('Druhý výsledek')
+  await input.press('Enter')
+  await expect(page.locator('.result-view')).toHaveCount(2)
+  await expect(page.getByRole('checkbox', { name: 'Výsledek 1' })).toHaveCount(0)
+  await expect(page.getByRole('checkbox', { name: 'Výsledek 2' })).toBeChecked()
+  await page
+    .locator('.result-view')
+    .first()
+    .getByRole('button', { name: 'Zobrazit na mapě' })
+    .click()
+  await expect(page.getByRole('checkbox', { name: 'Výsledek 1' })).toBeChecked()
+  await expect(page.getByRole('checkbox', { name: 'Výsledek 2' })).not.toBeChecked()
+  await page
+    .locator('.result-view')
+    .first()
+    .getByRole('button', { name: 'Zobrazit na mapě' })
+    .click()
+  await expect(page.locator('.map-layers input:checked')).toHaveCount(1)
+  await expect(page.locator('.workspace-map-label')).toHaveCount(1)
 })
