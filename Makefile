@@ -1,12 +1,16 @@
 COMPOSE = docker compose --env-file .env -f infra/compose.dev.yml
+COMPOSE_CLOUD = $(COMPOSE) -f infra/compose.cloud.yml
 
-.PHONY: setup up down logs ps build seed config lint format check smoke test-api test-etl test-mcp check-gemini import-data
+.PHONY: setup up up-cloud down logs ps build seed config config-cloud lint format check smoke test-api test-etl test-mcp check-gemini check-gemini-cloud import-data validate-demo refresh-landing
 
 setup:
 	@test -f .env || cp .env.example .env
 
 up: setup
 	$(COMPOSE) up -d --build --wait
+
+up-cloud: setup
+	$(COMPOSE_CLOUD) up -d --build --wait
 
 down:
 	$(COMPOSE) down
@@ -29,6 +33,9 @@ import-data: setup
 
 config: setup
 	$(COMPOSE) config --quiet
+
+config-cloud: setup
+	$(COMPOSE_CLOUD) config --quiet
 
 lint: setup
 	$(COMPOSE) run --rm --build --no-deps quality-python
@@ -55,3 +62,14 @@ test-mcp: setup
 
 check-gemini: setup
 	$(COMPOSE) exec -T api python -m scripts.check_gemini
+
+check-gemini-cloud: setup
+	$(COMPOSE_CLOUD) exec -T api python -m scripts.check_gemini
+
+# Opt-in: uses the configured Gemini quota and real MCP/data services.
+validate-demo: setup
+	$(COMPOSE) exec -T api python -m scripts.validate_demo
+
+# Real public-place data and routes, exported without using private chat history.
+refresh-landing: setup
+	$(COMPOSE) exec -T api python -m scripts.export_landing_examples | node web/scripts/update-landing-examples.mjs

@@ -16,6 +16,9 @@ from sqlalchemy.dialects.postgresql import insert
 from etl.config import DATABASE_URL, TARGET_CRS
 
 TABLES = (
+    "osm_route_features",
+    "facility_poi",
+    "municipality_status",
     "csu_demografie_obce",
     "sentinel_ndvi_obce",
     "ruian_parcely",
@@ -53,16 +56,15 @@ def get_engine():
 
 
 @contextmanager
-def transaction(kind="external"):
+def transaction(kind="external", lock_key="opendata-etl"):
     """One commit for a complete CLI job; nested operations reuse its connection."""
     if _connection.get() is not None:
         yield _connection.get()
         return
     with get_engine().begin() as conn:
         conn.execute(
-            text(
-                "SELECT pg_advisory_xact_lock(hashtext(current_schema()), hashtext('opendata-etl'))"
-            )
+            text("SELECT pg_advisory_xact_lock(hashtext(current_schema()), hashtext(:lock_key))"),
+            {"lock_key": lock_key},
         )
         connection_token = _connection.set(conn)
         kind_token = _kind.set(kind)

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,8 +14,11 @@ class Settings(BaseSettings):
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+    gemini_provider: Literal["developer", "vertex"] = "developer"
     gemini_api_key: SecretStr = SecretStr("")
     gemini_model: str = "gemini-3.1-flash-lite"
+    google_cloud_project: str = ""
+    google_cloud_location: str = "global"
     gemini_timeout_seconds: int = Field(default=60, ge=5, le=180)
     gemini_max_output_tokens: int = Field(default=2048, ge=256, le=8192)
     llm_max_concurrent: int = Field(default=4, ge=1, le=16)
@@ -23,6 +27,12 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[3] / ".env", extra="ignore"
     )
+
+    @property
+    def gemini_configured(self) -> bool:
+        if self.gemini_provider == "vertex":
+            return bool(self.google_cloud_project.strip() and self.google_cloud_location.strip())
+        return bool(self.gemini_api_key.get_secret_value().strip())
 
 
 settings = Settings()

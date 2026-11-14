@@ -45,3 +45,55 @@ test('standalone Vite forwards registration and login and explains unavailable b
     else process.env.HTTP_PORT = previousPort
   }
 })
+
+test('a delayed 401 cannot log out a newer session', async ({ page }) => {
+  const vite = await createViteServer({
+    configFile: 'vite.config.ts',
+    server: { host: '127.0.0.1', port: 0, strictPort: false },
+  })
+  try {
+    await vite.listen()
+    const url = vite.resolvedUrls!.local[0]
+    await page.route(url, (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><title>API client audit</title>',
+      }),
+    )
+    await page.goto(url)
+    let intercept: (route: import('@playwright/test').Route) => void
+    const intercepted = new Promise<import('@playwright/test').Route>((resolve) => {
+      intercept = resolve
+    })
+    await page.route('**/api/audit-stale', (route) => intercept(route))
+    await page.evaluate(async () => {
+      const client = await import('/src/api/client.ts')
+      localStorage.setItem('auth_token', 'old-session-fixture')
+      const state = { pending: client.apiFetch('/audit-stale').catch(() => null), unauthorized: 0 }
+      window.addEventListener(client.UNAUTHORIZED_EVENT, () => state.unauthorized++)
+      Object.assign(window, { auditClient: state })
+    })
+    const route = await intercepted
+    await page.evaluate(() => localStorage.setItem('auth_token', 'new-session-fixture'))
+    await route.fulfill({ status: 401, json: { detail: 'expired' } })
+    const state = await page.evaluate(async () => {
+      const state = (
+        window as unknown as { auditClient: { pending: Promise<unknown>; unauthorized: number } }
+      ).auditClient
+      await state.pending
+      return { token: localStorage.getItem('auth_token'), unauthorized: state.unauthorized }
+    })
+    expect(state).toEqual({ token: 'new-session-fixture', unauthorized: 0 })
+    await page.route('**/api/audit-current', (route) =>
+      route.fulfill({ status: 401, json: { detail: 'expired' } }),
+    )
+    const current = await page.evaluate(async () => {
+      const { apiFetch } = await import('/src/api/client.ts')
+      await apiFetch('/audit-current').catch(() => null)
+      return localStorage.getItem('auth_token')
+    })
+    expect(current).toBeNull()
+  } finally {
+    await vite.close()
+  }
+})

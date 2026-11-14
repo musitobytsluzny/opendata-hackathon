@@ -1,5 +1,5 @@
-import { memo } from 'react'
-import type { Position } from 'geojson'
+import { memo, type ReactNode } from 'react'
+import type { Feature, Geometry, Position } from 'geojson'
 import { KRAJ_BOUNDS, okresy, type OkresId } from './geo'
 import { PALETTES, type PaletteId } from './palette'
 import { useSettings } from '../settings/settings'
@@ -42,7 +42,50 @@ function ramp(v: number, palette: PaletteId): string {
   return `rgb(${c[0]} ${c[1]} ${c[2]})`
 }
 
+function drawGeometry(geometry: Geometry, key: string): ReactNode {
+  const project = ([lon, lat]: Position) =>
+    `${Math.round((lon - W) * K * 1000)},${Math.round((N - lat) * 1000)}`
+  const line = (coordinates: Position[]) =>
+    coordinates.map((point, i) => `${i ? 'L' : 'M'}${project(point)}`).join('')
+  const style = { stroke: 'var(--blue-2)', strokeWidth: 8, fill: 'none' }
+  switch (geometry.type) {
+    case 'Point': {
+      const [cx, cy] = project(geometry.coordinates).split(',')
+      return <circle key={key} cx={cx} cy={cy} r={19} fill="var(--blue-2)" />
+    }
+    case 'LineString':
+      return <path key={key} d={line(geometry.coordinates)} style={style} />
+    case 'MultiLineString':
+      return <path key={key} d={geometry.coordinates.map(line).join('')} style={style} />
+    case 'Polygon':
+      return (
+        <path
+          key={key}
+          d={geometry.coordinates.map(ring).join('')}
+          style={{ ...style, fill: 'var(--blue-2)', fillOpacity: 0.35 }}
+          fillRule="evenodd"
+        />
+      )
+    case 'MultiPolygon':
+      return (
+        <path
+          key={key}
+          d={geometry.coordinates.map((polygon) => polygon.map(ring).join('')).join('')}
+          style={{ ...style, fill: 'var(--blue-2)', fillOpacity: 0.35 }}
+          fillRule="evenodd"
+        />
+      )
+    case 'MultiPoint':
+      return geometry.coordinates.map((coordinates, i) =>
+        drawGeometry({ type: 'Point', coordinates }, `${key}-${i}`),
+      )
+    case 'GeometryCollection':
+      return geometry.geometries.map((part, i) => drawGeometry(part, `${key}-${i}`))
+  }
+}
+
 type Props = {
+  features?: Feature[]
   values?: Partial<Record<OkresId, number>> | null
   size?: number
   tone?: 'light' | 'dark'
@@ -51,6 +94,7 @@ type Props = {
 
 export const MiniKraj = memo(function MiniKraj({
   values,
+  features,
   size = 56,
   tone = 'light',
   title,
@@ -71,6 +115,9 @@ export const MiniKraj = memo(function MiniKraj({
         const v = values?.[s.id]
         return <path key={s.id} d={s.d} fill={v === undefined ? empty : ramp(v, palette)} />
       })}
+      {features?.map((feature, index) =>
+        feature.geometry ? drawGeometry(feature.geometry, String(feature.id ?? index)) : null,
+      )}
     </svg>
   )
 })

@@ -22,7 +22,8 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
 
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Nesprávné uživatelské jméno nebo heslo.",
         )
 
     token = create_access_token(user.id, user.username)

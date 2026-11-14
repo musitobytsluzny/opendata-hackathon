@@ -36,7 +36,7 @@ def build_overpass_query(bbox: tuple) -> str:
     return query.strip()
 
 
-def fetch_and_load_osm(bbox: tuple = DEFAULT_BBOX, force_download: bool = False) -> int:
+def fetch_and_load_osm_overpass(bbox: tuple = DEFAULT_BBOX, force_download: bool = False) -> int:
     """Fetch POIs from OpenStreetMap via Overpass API (with local caching) and save to PostGIS."""
     logger.info(f"Processing OSM POIs for bbox {bbox}...")
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -123,6 +123,13 @@ def fetch_and_load_osm(bbox: tuple = DEFAULT_BBOX, force_download: bool = False)
 
     gdf = gpd.GeoDataFrame(records, crs=TARGET_CRS, geometry="geom")
     return save_geodataframe(gdf, "osm_poi", if_exists="append", geom_col="geom")
+
+
+def fetch_and_load_osm(bbox=DEFAULT_BBOX, force_download=False):
+    """Prefer the verified regional extract to fragile live Overpass queries."""
+    from etl.downloaders.osm_extract import fetch_and_load_osm_extract
+
+    return fetch_and_load_osm_extract(bbox=bbox, force_download=force_download)
 
 
 if __name__ == "__main__":

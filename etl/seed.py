@@ -30,12 +30,15 @@ def seed_schema():
     logger.info("Applying database schemas and spatial functions...")
     with transaction():
         execute_sql_file(ETL_DIR / "sql" / "001_schema.sql")
+        execute_sql_file(ETL_DIR / "sql" / "003_facilities.sql")
+        execute_sql_file(ETL_DIR / "sql" / "004_route_context.sql")
         execute_sql_file(ETL_DIR / "sql" / "002_views.sql")
 
 
 def drop_tables():
     """Safely drop all tables with CASCADE for a clean schema reset."""
     logger.info("Dropping existing tables for a clean schema migration...")
+    execute_sql("DROP VIEW IF EXISTS all_facility_poi")
     execute_sql(f"DROP TABLE IF EXISTS {', '.join(TABLES)}, etl_dataset_status")
 
 
@@ -56,7 +59,7 @@ def seed_lookups():
             "nazev": "Orná půda",
             "patri_do_zpf": True,
             "je_stavebni_plocha": False,
-            "stavebni_poznamka": "Nutné vynětí ze ZPF s poplatkem a souhlasem OŽP",
+            "stavebni_poznamka": "Katastrální druh pozemku sám neurčuje přípustnost záměru ani povolení stavby. Územní plán a povolení nejsou v těchto datech posouzené.",
         },
         {
             "id": 7,
@@ -64,7 +67,7 @@ def seed_lookups():
             "nazev": "Trvalý travní porost",
             "patri_do_zpf": True,
             "je_stavebni_plocha": False,
-            "stavebni_poznamka": "Nutné vynětí ze ZPF, regulace odtoku vody",
+            "stavebni_poznamka": "Katastrální druh pozemku sám neurčuje přípustnost záměru ani povolení stavby. Územní plán a povolení nejsou v těchto datech posouzené.",
         },
         {
             "id": 13,
@@ -72,15 +75,15 @@ def seed_lookups():
             "nazev": "Zastavěná plocha a nádvoří",
             "patri_do_zpf": False,
             "je_stavebni_plocha": True,
-            "stavebni_poznamka": "Určeno k zástavbě, stavba povolena dle územního plánu",
+            "stavebni_poznamka": "Katastrální druh pozemku sám neurčuje přípustnost záměru ani povolení stavby. Územní plán a povolení nejsou v těchto datech posouzené.",
         },
         {
             "id": 14,
             "kod": "OSTATNI_PLOCHA",
             "nazev": "Ostatní plocha",
             "patri_do_zpf": False,
-            "je_stavebni_plocha": True,
-            "stavebni_poznamka": "Využití dle specifického způsobu (komerce, sport, zeleň)",
+            "je_stavebni_plocha": False,
+            "stavebni_poznamka": "Katastrální druh pozemku sám neurčuje přípustnost záměru ani povolení stavby. Územní plán a povolení nejsou v těchto datech posouzené.",
         },
     ]
     save_dataframe(pd.DataFrame(druhy_pozemku), "ciselnik_druh_pozemku")

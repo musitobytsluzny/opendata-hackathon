@@ -1,9 +1,29 @@
+import type { Feature } from 'geojson'
 import { apiFetch } from '../api/client'
 import { OKRESY, type OkresId } from '../map/geo'
+import exampleQuestions from './example-questions.json'
+import { validateAnswer } from './validateAnswer'
 
 export type AnswerRow = { okres: OkresId; value: number }
 
+export type Artifact = {
+  result_id: string
+  title: string
+  view: 'table' | 'map' | 'bar' | 'line' | 'pie'
+  columns: { key: string; label: string; numeric: boolean; additive?: boolean; unit: string }[]
+  rows: Record<string, string | number | boolean | null>[]
+  features: Feature[]
+  sources: { table_name?: string; name?: string; data_kind?: string; loaded_at?: string }[]
+  note: string
+  sample: boolean
+  value_key?: string | null
+  label_key?: string | null
+}
+
 export type Answer = {
+  result_ids?: string[]
+  artifacts?: Artifact[]
+  layer_actions?: { result_id: string; visible: boolean }[]
   text: string
   metric?: string
   short?: string
@@ -21,22 +41,30 @@ export type Message =
 
 export const PENDING_QUESTION_KEY = 'pending_question'
 
-export const SUGGESTIONS = [
-  'Kolik obyvatel mají dostupné obce v jednotlivých okresech?',
-  'Jaký je podíl seniorů v dostupných obcích?',
-  'Kde mají dostupné obce nejvyšší podíl zeleně?',
-  'Jaká data jsou právě načtená a která jsou jen ukázková?',
-]
+export const SUGGESTIONS = exampleQuestions
 
 export async function ask(
   question: string,
   history: Message[] = [],
   signal?: AbortSignal,
 ): Promise<Answer> {
-  return apiFetch<Answer>('/chat/ask', {
+  const resultIds = [
+    ...new Set(
+      history.flatMap((message) =>
+        message.role === 'assistant'
+          ? [
+              ...(message.answer.result_ids ?? []),
+              ...(message.answer.artifacts ?? []).map((item) => item.result_id),
+            ]
+          : [],
+      ),
+    ),
+  ].slice(-8)
+  const response = await apiFetch<unknown>('/chat/ask', {
     method: 'POST',
     body: JSON.stringify({
       question,
+      ...(resultIds.length ? { result_ids: resultIds } : {}),
       history: history
         .filter((message) => message.role !== 'error')
         .slice(-10)
@@ -47,6 +75,9 @@ export async function ask(
     }),
     signal,
   })
+  const answer = validateAnswer(response)
+  if (!answer) throw new Error('Server vrátil neplatnou odpověď. Zkuste dotaz znovu.')
+  return answer
 }
 
 const valueFormat = new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 2 })

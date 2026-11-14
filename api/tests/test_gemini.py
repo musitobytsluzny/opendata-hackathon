@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from app.schemas.chat import ChatRequest
 from app.services import gemini_chat as chat
+from app.services.gemini_client import create_gemini_client
 from fastapi import HTTPException
 from google.genai import errors, types
 from mcp.types import CallToolResult, TextContent
@@ -19,6 +20,9 @@ class GeminiTests(unittest.IsolatedAsyncioTestCase):
         self.settings = patch.object(chat.settings, "gemini_api_key", SecretStr("unit-test-key"))
         self.settings.start()
         self.addCleanup(self.settings.stop)
+        self.provider = patch.object(chat.settings, "gemini_provider", "developer")
+        self.provider.start()
+        self.addCleanup(self.provider.stop)
         self.calls = []
         self.map = {
             "metric": "Počet obyvatel",
@@ -68,7 +72,7 @@ class GeminiTests(unittest.IsolatedAsyncioTestCase):
             ),
             close=Mock(),
         )
-        factory = patch.object(chat.genai, "Client", return_value=self.client)
+        factory = patch.object(chat, "create_gemini_client", return_value=self.client)
         self.factory = factory.start()
         self.addCleanup(factory.stop)
         chat._active_users.clear()
@@ -142,6 +146,29 @@ class GeminiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(context.exception.status_code, 503)
         self.factory.assert_not_called()
 
+    async def test_vertex_mode_requires_project_even_if_developer_key_exists(self):
+        with (
+            patch.object(chat.settings, "gemini_provider", "vertex"),
+            patch.object(chat.settings, "google_cloud_project", ""),
+        ):
+            with self.assertRaises(HTTPException) as context:
+                await chat.answer(ChatRequest(question="test"), 1, "token")
+
+        self.assertEqual(context.exception.status_code, 503)
+        self.factory.assert_not_called()
+
+    async def test_vertex_mode_works_without_developer_api_key(self):
+        self.client.aio.models.generate_content.return_value = self.response(text="Odpověď")
+        with (
+            patch.object(chat.settings, "gemini_provider", "vertex"),
+            patch.object(chat.settings, "gemini_api_key", SecretStr("")),
+            patch.object(chat.settings, "google_cloud_project", "project-id"),
+        ):
+            result = await chat.answer(ChatRequest(question="test"), 1, "token")
+
+        self.assertEqual(result.text, "Odpověď")
+        self.factory.assert_called_once_with()
+
     async def test_concurrency_and_provider_errors_are_safe(self):
         chat._active_users.add(1)
         with self.assertRaises(HTTPException) as context:
@@ -156,7 +183,23 @@ class GeminiTests(unittest.IsolatedAsyncioTestCase):
             await chat.answer(ChatRequest(question="test"), 1, "token")
         self.assertEqual(context.exception.status_code, 429)
         self.assertNotIn("unit-test-key", context.exception.detail)
+        self.assertEqual(self.client.aio.models.generate_content.await_count, 1)
         self.assertNotIn(1, chat._active_users)
+
+    def test_vertex_client_uses_project_adc_configuration(self):
+        with (
+            patch.object(chat.settings, "gemini_provider", "vertex"),
+            patch.object(chat.settings, "google_cloud_project", "project-id"),
+            patch.object(chat.settings, "google_cloud_location", "global"),
+            patch("app.services.gemini_client.genai.Client") as client_factory,
+        ):
+            create_gemini_client()
+
+        kwargs = client_factory.call_args.kwargs
+        self.assertTrue(kwargs["enterprise"])
+        self.assertEqual(kwargs["project"], "project-id")
+        self.assertEqual(kwargs["location"], "global")
+        self.assertNotIn("api_key", kwargs)
 
     async def test_expired_token_is_not_forwarded_to_google(self):
         self.session.call_tool.return_value = None
@@ -179,3 +222,262 @@ class GeminiTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(HTTPException) as context:
             await chat.answer(ChatRequest(question="test"), 1, "token")
         self.assertEqual(context.exception.status_code, 502)
+
+    async def test_verified_result_can_be_charted_without_model_supplied_values(self):
+        original = self.session.call_tool.side_effect
+
+        async def call_tool(name, arguments):
+            if name != "municipality_statistics":
+                return await original(name, arguments)
+            data = {
+                "result": {
+                    "title": "Obce",
+                    "rows": [{"name": "Fixture", "value": 42}],
+                    "columns": [
+                        {"key": "name", "label": "Obec"},
+                        {"key": "value", "label": "Počet", "numeric": True},
+                    ],
+                }
+            }
+            return CallToolResult(content=[], structuredContent=data)
+
+        self.session.call_tool.side_effect = call_tool
+        step = 0
+
+        async def model(**kwargs):
+            nonlocal step
+            step += 1
+            if step == 1:
+                return self.response(name="municipality_statistics")
+            if step == 2:
+                payload = kwargs["contents"][-1].parts[0].function_response.response["result"]
+                self.assertEqual(payload["rows"][0]["value"], 42)
+                self.assertNotIn("features", payload)
+                # Presentation directives are normally returned by the MCP tool.
+                self.session.call_tool.side_effect = AsyncMock(
+                    return_value=CallToolResult(
+                        content=[],
+                        structuredContent={
+                            "presentation": {
+                                "result_id": payload["result_id"],
+                                "view": "bar",
+                                "value_key": "value",
+                                "label_key": "name",
+                            }
+                        },
+                    )
+                )
+                return types.GenerateContentResponse(
+                    candidates=[
+                        types.Candidate(
+                            content=types.Content(
+                                role="model",
+                                parts=[
+                                    types.Part(
+                                        function_call=types.FunctionCall(
+                                            name="show_chart",
+                                            args={
+                                                "result_id": payload["result_id"],
+                                                "value_key": "value",
+                                                "label_key": "name",
+                                            },
+                                        )
+                                    )
+                                ],
+                            )
+                        )
+                    ]
+                )
+            return self.response(text="Tady je graf ověřených hodnot.")
+
+        self.client.aio.models.generate_content.side_effect = model
+        result = await chat.answer(ChatRequest(question="Ukaž graf"), 1, "user-token")
+        self.assertEqual(result.artifacts[0].view, "bar")
+        self.assertEqual(result.artifacts[0].rows[0]["value"], 42)
+
+    async def test_parcel_map_is_automatic_without_a_presentation_tool_call(self):
+        async def lookup(name, arguments):
+            data = (
+                {"datasets": []}
+                if name == "dataset_catalog"
+                else {
+                    "result": {
+                        "title": "Parcela 438 · Bolevec",
+                        "view": "map",
+                        "columns": [{"key": "name", "label": "Parcela"}],
+                        "rows": [{"name": "438"}],
+                        "features": [
+                            {
+                                "type": "Feature",
+                                "id": "parcela:1",
+                                "properties": {},
+                                "geometry": {"type": "Point", "coordinates": [13.37, 50.04]},
+                            }
+                        ],
+                    }
+                }
+            )
+            return CallToolResult(content=[], structuredContent=data)
+
+        self.session.call_tool.side_effect = lookup
+        self.client.aio.models.generate_content.side_effect = [
+            self.response(name="prevalidate_address"),
+            self.response(text="Nalezená parcela."),
+        ]
+        reply = await chat.answer(
+            ChatRequest(question="Najdi parcelu na adrese Koterovská 85, Plzeň"), 1, "token"
+        )
+        self.assertEqual(reply.artifacts[0].view, "map")
+        self.assertEqual(reply.artifacts[0].features[0]["id"], "parcela:1")
+        self.assertNotIn("show_map", [name for name, _ in self.calls])
+
+    async def test_comparison_summary_is_rendered_from_verified_data_without_freeform_claims(self):
+        from app.services import chat_results
+
+        entries = [
+            chat_results.remember(
+                {
+                    "title": "Parcela",
+                    "columns": [{"key": "area_m2", "label": "Výměra", "numeric": True}],
+                    "rows": [
+                        {
+                            "id": f"parcela:{index}",
+                            "name": str(index),
+                            "area_m2": area,
+                            "assessment_kind": "indicative",
+                        }
+                    ],
+                },
+                1,
+            )
+            for index, area in [(1, 53), (2, 111)]
+        ]
+        ids = [item.result_id for item in entries]
+
+        async def lookup(name, arguments):
+            payload = (
+                {"datasets": []}
+                if name == "dataset_catalog"
+                else {"comparison_summary": {"result_ids": ids}}
+            )
+            return CallToolResult(content=[], structuredContent=payload)
+
+        self.session.call_tool.side_effect = lookup
+        self.client.aio.models.generate_content.return_value = types.GenerateContentResponse(
+            candidates=[
+                types.Candidate(
+                    content=types.Content(
+                        role="model",
+                        parts=[
+                            types.Part(
+                                function_call=types.FunctionCall(
+                                    name="comparison_summary", args={"result_ids": ids}
+                                )
+                            )
+                        ],
+                    )
+                )
+            ]
+        )
+        reply = await chat.answer(
+            ChatRequest(question="Shrň porovnání parcel pro rodinu", result_ids=ids), 1, "token"
+        )
+        self.assertIn("58 m²", reply.text)
+        self.assertIn("Výměra ale není volná plocha", reply.text)
+        self.assertEqual(self.client.aio.models.generate_content.await_count, 1)
+
+    async def test_walking_context_keeps_server_findings_without_model_reinterpretation(self):
+        async def lookup(name, arguments):
+            payload = (
+                {"datasets": []}
+                if name == "dataset_catalog"
+                else {
+                    "prepared_text": "Pěší trasa: neověřeno není bezpečno.",
+                    "result": {"title": "Pěší trasa", "view": "map", "columns": [], "rows": []},
+                }
+            )
+            return CallToolResult(content=[], structuredContent=payload)
+
+        self.session.call_tool.side_effect = lookup
+        self.client.aio.models.generate_content.return_value = self.response(name="route_context")
+        reply = await chat.answer(ChatRequest(question="Nebezpečí cestou do školy?"), 1, "token")
+        self.assertEqual(reply.text, "Pěší trasa: neověřeno není bezpečno.")
+        self.assertEqual(self.client.aio.models.generate_content.await_count, 1)
+        self.assertEqual(len(reply.result_ids), 1)
+
+    async def test_empty_model_text_preserves_verified_tool_output(self):
+        async def lookup(name, arguments):
+            payload = (
+                {"datasets": []}
+                if name == "dataset_catalog"
+                else {"result": {"title": "Školy", "columns": [], "rows": [{"id": "facility:1"}]}}
+            )
+            return CallToolResult(content=[], structuredContent=payload)
+
+        self.session.call_tool.side_effect = lookup
+        self.client.aio.models.generate_content.side_effect = [
+            self.response(name="nearby_facilities"),
+            self.response(text=""),
+        ]
+        reply = await chat.answer(ChatRequest(question="Nejbližší školy"), 1, "token")
+        self.assertIn("Školy", reply.text)
+        self.assertEqual(reply.artifacts[0].rows[0]["id"], "facility:1")
+
+    async def test_tool_action_pseudo_links_are_sanitized_and_prompt_contains_rules(self):
+        self.assertIn("Nikdy negeneruj URL ani pseudoodkazy na nástroje", chat.SYSTEM_PROMPT)
+        self.assertIn(
+            "Důsledně rozlišuj silniční vzdálenost v km a čas dojezdu v minutách",
+            chat.SYSTEM_PROMPT,
+        )
+        self.assertIn("prostorový prevalidační nástroj pro prověřování parcel", chat.SYSTEM_PROMPT)
+        self.client.aio.models.generate_content.side_effect = [
+            self.response(
+                text="Pro zobrazení: [Odkaz na mapu](show_map?result_id=12345) a [Tabulka](show_table?result_id=67890)."
+            ),
+        ]
+        reply = await chat.answer(ChatRequest(question="Ukaž trasu"), 1, "token")
+        self.assertIn("Odkaz na mapu (výsledek vypršel nebo není dostupný)", reply.text)
+        self.assertFalse(reply.artifacts)
+        self.assertNotIn("show_map?", reply.text)
+
+    async def test_explicit_summary_of_prepared_comparison_bypasses_freeform_generation(self):
+        from app.services import chat_results
+
+        item = chat_results.remember(
+            {
+                "title": "Porovnání",
+                "columns": [],
+                "rows": [
+                    {
+                        "id": f"parcela:{i}",
+                        "name": str(i),
+                        "area_m2": area,
+                        "assessment_kind": "indicative",
+                    }
+                    for i, area in [(1, 53), (2, 111)]
+                ],
+            },
+            1,
+        )
+        reply = await chat.answer(
+            ChatRequest(question="Shrň poslední porovnání pro rodinu", result_ids=[item.result_id]),
+            1,
+            "token",
+        )
+        self.assertIn("58 m²", reply.text)
+        self.assertIn("Výměra ale není volná plocha", reply.text)
+        self.client.aio.models.generate_content.assert_not_awaited()
+        self.assertEqual(self.calls, [("dataset_catalog", {})])
+
+    async def test_relative_location_without_origin_requests_clarification(self):
+        reply = await chat.answer(
+            ChatRequest(question="Kde je nejbližší nemocnice ode mě?"), 1, "token"
+        )
+        self.assertIn("Nemám vaši polohu", reply.text)
+        self.assertFalse(reply.artifacts)
+        self.client.aio.models.generate_content.assert_not_awaited()
+        self.assertFalse(
+            chat.needs_location_clarification(
+                ChatRequest(question="Najdi nemocnici v Klatovech ode mě"), {}
+            )
+        )

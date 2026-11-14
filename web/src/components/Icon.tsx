@@ -68,6 +68,12 @@ const paths = {
       <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
     </>
   ),
+  layers: (
+    <>
+      <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+      <path d="m3 12 9 5 9-5M3 16l9 5 9-5" />
+    </>
+  ),
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   locate: (
     <>

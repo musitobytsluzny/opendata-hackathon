@@ -85,3 +85,9 @@ npm ci
 npx playwright install chromium
 npm run test:e2e
 ```
+
+Chat umí zobrazit ověřený výsledek v řaditelné tabulce, sloupcovém/spojnicovém grafu
+nebo jako samostatnou vrstvu mapy. V nabídce **Mapa a vrstvy** lze vrstvy přepínat,
+vybrat parcelu kliknutím a vybrat dvě parcely pro porovnání v chatu. Vzdušné měření
+a silniční trasa mají odlišný význam i popisky. Detaily a limity:
+[KartogramMCP](mcp/README.md).

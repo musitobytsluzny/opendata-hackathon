@@ -43,7 +43,11 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
 
 @router.patch("/{user_id}", response_model=UserRead, dependencies=[Depends(require_self_or_admin)])
 def update_user_endpoint(user_id: int, user_data: UserUpdate, db: Session = Depends(get_db)):
-    user = update_user(db, user_id, user_data)
+    try:
+        user = update_user(db, user_id, user_data)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Toto uživatelské jméno už někdo používá.") from None
 
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")

@@ -1,13 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from pwdlib import PasswordHash
 from sqlalchemy.orm import Session
 
 from app.database.connection import settings
 from app.models.user import User
-
-password_hash = PasswordHash.recommended()
+from app.services.passwords import verify_password
 
 
 def authenticate_user(db: Session, username: str, password: str):
@@ -16,7 +14,7 @@ def authenticate_user(db: Session, username: str, password: str):
     if user is None:
         return None
 
-    if not password_hash.verify(password, user.password_hash):
+    if not verify_password(password, user.password_hash):
         return None
 
     return user

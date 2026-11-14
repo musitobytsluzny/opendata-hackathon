@@ -1,3 +1,4 @@
+import type { Feature, Position } from 'geojson'
 import {
   forwardRef,
   useCallback,
@@ -10,6 +11,9 @@ import {
 import {
   Map as MlMap,
   Marker,
+  LngLatBounds,
+  type GeoJSONSource,
+  type LngLatBoundsLike,
   setWorkerUrl,
   prewarm,
   type ExpressionSpecification,
@@ -21,7 +25,6 @@ import mapWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 import {
-  CZECH_CENTER,
   cesko,
   KRAJ_BOUNDS,
   OKRESY,
@@ -48,7 +51,10 @@ export type RegionMapHandle = {
   zoomOut: () => void
 }
 
-type Target = { kind: 'kraj' } | { kind: 'okres'; id: OkresId }
+type Target =
+  | { kind: 'kraj' }
+  | { kind: 'okres'; id: OkresId }
+  | { kind: 'overlay'; bounds: LngLatBoundsLike }
 type Camera = { center: LngLatLike; zoom: number; bearing: number; version: number }
 
 const EASE = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
@@ -56,6 +62,10 @@ const EASE = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 
 type Padding = { top: number; right: number; bottom: number; left: number }
 
 export type RegionMapProps = {
+  overlay?: Feature[]
+  focusFeatures?: Feature[]
+  overlayKey?: string
+  onMapClick?: (lon: number, lat: number) => void
   interactive?: boolean
   hoverable?: boolean
   palette?: PaletteId
@@ -71,6 +81,8 @@ export type RegionMapProps = {
   viewKey?: string
   label?: string
   basemap?: 'satellite' | 'ortho' | 'dark'
+  showCadastre?: boolean
+  cadastreOpacity?: number
   reducedMotion?: boolean
   onSelect?: (id: OkresId) => void
   className?: string
@@ -110,6 +122,8 @@ function visibility(on: boolean) {
 }
 
 const ORTOFOTO = 'https://ags.cuzk.cz/arcgis1/rest/services/ORTOFOTO_WM/MapServer/tile/{z}/{y}/{x}'
+const CADASTRE =
+  'https://ags.cuzk.cz/arcgis/rest/services/RUIAN/MapServer/export?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256%2C256&format=png32&transparent=true&layers=show%3A5&f=image'
 
 const style: StyleSpecification = {
   version: 8,
@@ -136,6 +150,15 @@ const style: StyleSpecification = {
       attribution:
         'Ortofoto © <a href="https://cuzk.gov.cz" target="_blank" rel="noreferrer">ČÚZK</a>',
     },
+    cadastre: {
+      type: 'raster',
+      tiles: [CADASTRE],
+      tileSize: 256,
+      maxzoom: 19,
+      bounds: [12.09, 48.55, 18.87, 51.06],
+      attribution:
+        'Katastrální parcely © <a href="https://ags.cuzk.cz/arcgis/rest/services/RUIAN/MapServer" target="_blank" rel="noreferrer">ČÚZK · RÚIAN</a>',
+    },
   },
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': '#0d120e' } },
@@ -148,6 +171,14 @@ const style: StyleSpecification = {
       minzoom: 11,
       paint: { 'raster-fade-duration': 120 },
     },
+    {
+      id: 'cadastre',
+      type: 'raster',
+      source: 'cadastre',
+      minzoom: 13,
+      layout: { visibility: 'none' },
+      paint: { 'raster-fade-duration': 120, 'raster-opacity': 0.72 },
+    },
   ],
 }
 
@@ -155,6 +186,10 @@ const DEFAULT_PADDING: Padding = { top: 24, right: 24, bottom: 24, left: 24 }
 
 export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function RegionMap(
   {
+    overlay,
+    focusFeatures,
+    overlayKey,
+    onMapClick,
     interactive = true,
     hoverable = false,
     palette,
@@ -170,6 +205,8 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     viewKey = 'default',
     label = 'Mapa Plzeňského kraje',
     basemap,
+    showCadastre = false,
+    cadastreOpacity = 0.72,
     reducedMotion = false,
     onSelect,
     className,
@@ -187,6 +224,7 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
   const paddingRef = useRef(padding)
   const onHoverRef = useRef(onHover)
   const valueMarkers = useRef<Marker[]>([])
+  const onMapClickRef = useRef(onMapClick)
   const onSelectRef = useRef(onSelect)
   const motionRef = useRef(motionReduced)
 
@@ -204,9 +242,10 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     maskRef.current = maskOpacity
     onHoverRef.current = onHover
     labelRef.current = label
+    onMapClickRef.current = onMapClick
     onSelectRef.current = onSelect
     motionRef.current = motionReduced
-  }, [padding, maskOpacity, onHover, label, onSelect, motionReduced])
+  }, [padding, maskOpacity, onHover, label, onSelect, onMapClick, motionReduced])
 
   const target = useRef<Target>({ kind: 'kraj' })
   const targetVersion = useRef(0)
@@ -217,10 +256,11 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     const m = map.current
     if (!m) return
     const t = target.current
-    const bounds = t.kind === 'okres' ? OKRES_BOUNDS[t.id] : KRAJ_BOUNDS
+    const bounds =
+      t.kind === 'overlay' ? t.bounds : t.kind === 'okres' ? OKRES_BOUNDS[t.id] : KRAJ_BOUNDS
     m.fitBounds(bounds, {
       padding: paddingRef.current,
-      ...(t.kind === 'okres' ? { maxZoom: 11.5 } : {}),
+      ...(t.kind === 'okres' ? { maxZoom: 11.5 } : t.kind === 'overlay' ? { maxZoom: 17 } : {}),
       duration:
         motionRef.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches
           ? 0
@@ -269,7 +309,7 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
         [28, 58],
       ],
       minZoom: 6,
-      maxZoom: 17,
+      maxZoom: 19,
       dragRotate: false,
       pitchWithRotate: false,
       fadeDuration: 0,
@@ -291,10 +331,13 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
 
     m.on('error', (event) => {
       const sourceId = (event as unknown as { sourceId?: string }).sourceId
-      if (sourceId === 's2' || sourceId === 'orto') setTileError(true)
+      if (sourceId === 's2' || sourceId === 'orto' || sourceId === 'cadastre') setTileError(true)
     })
     m.on('sourcedata', (event) => {
-      if ((event.sourceId === 's2' || event.sourceId === 'orto') && event.isSourceLoaded)
+      if (
+        (event.sourceId === 's2' || event.sourceId === 'orto' || event.sourceId === 'cadastre') &&
+        event.isSourceLoaded
+      )
         setTileError(false)
     })
 
@@ -377,7 +420,7 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
         })
         m.on('click', 'okresy-fill', (e: MapLayerMouseEvent) => {
           const id = e.features?.[0]?.properties?.id as OkresId | undefined
-          if (interactive && id && OKRESY[id]) onSelectRef.current?.(id)
+          if (interactive && !onMapClickRef.current && id && OKRESY[id]) onSelectRef.current?.(id)
         })
         m.on('mouseleave', 'okresy-fill', () => {
           m.getCanvas().style.cursor = ''
@@ -385,6 +428,38 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
         })
       }
 
+      m.addSource('workspace', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      const color: ExpressionSpecification = ['coalesce', ['get', '_color'], '#c3d6ad']
+      m.addLayer({
+        id: 'workspace-fill',
+        type: 'fill',
+        source: 'workspace',
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: { 'fill-color': color, 'fill-opacity': 0.25 },
+      })
+      m.addLayer({
+        id: 'workspace-line',
+        type: 'line',
+        source: 'workspace',
+        filter: ['!=', ['geometry-type'], 'Point'],
+        paint: { 'line-color': color, 'line-width': 3 },
+      })
+      m.addLayer({
+        id: 'workspace-point',
+        type: 'circle',
+        source: 'workspace',
+        filter: ['==', ['geometry-type'], 'Point'],
+        paint: {
+          'circle-color': color,
+          'circle-radius': 7,
+          'circle-stroke-color': '#172019',
+          'circle-stroke-width': 2,
+        },
+      })
+      m.on('click', (event) => onMapClickRef.current?.(event.lngLat.lng, event.lngLat.lat))
       setReady(true)
     })
 
@@ -396,6 +471,52 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
       map.current = null
     }
   }, [interactive, hoverable])
+
+  useEffect(() => {
+    const m = map.current
+    if (!m || !ready) return
+    ;(m.getSource('workspace') as GeoJSONSource).setData({
+      type: 'FeatureCollection',
+      features: overlay ?? [],
+    })
+    const markers: Marker[] = []
+    for (const feature of overlay ?? []) {
+      if (markers.length >= 25 || !feature.geometry) break
+      const geometry = feature.geometry
+      let coordinates: Position | undefined
+      if (geometry.type === 'Point') coordinates = geometry.coordinates
+      else if (geometry.type === 'LineString' && feature.properties?.measurement)
+        coordinates = geometry.coordinates[Math.floor(geometry.coordinates.length / 2)]
+      if (!coordinates || !feature.properties?.label) continue
+      const element = document.createElement('span')
+      element.className = 'workspace-map-label'
+      element.textContent = String(feature.properties.label)
+      markers.push(
+        new Marker({ element, anchor: 'bottom', offset: [0, -10] })
+          .setLngLat([coordinates[0], coordinates[1]])
+          .addTo(m),
+      )
+    }
+    return () => markers.forEach((marker) => marker.remove())
+  }, [overlay, ready])
+
+  useEffect(() => {
+    if (!ready || !overlayKey || !overlay?.length) return
+    const bounds = new LngLatBounds()
+    function extend(coordinates: unknown) {
+      if (!Array.isArray(coordinates)) return
+      if (typeof coordinates[0] === 'number' && typeof coordinates[1] === 'number') {
+        if (Number.isFinite(coordinates[0]) && Number.isFinite(coordinates[1]))
+          bounds.extend([coordinates[0], coordinates[1]])
+      } else coordinates.forEach(extend)
+    }
+    for (const feature of focusFeatures ?? overlay)
+      if (feature.geometry && 'coordinates' in feature.geometry)
+        extend(feature.geometry.coordinates)
+    if (!bounds.isEmpty()) setTarget({ kind: 'overlay', bounds: bounds.toArray() })
+    // Geometry visibility changes update the source; camera moves only for an explicit target key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlayKey, ready])
 
   useEffect(() => {
     const m = map.current
@@ -517,11 +638,13 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     m.setLayoutProperty('flat', 'visibility', visibility(flat))
     for (const id of ['s2', 'orto', 'land'])
       m.setLayoutProperty(id, 'visibility', visibility(!flat))
+    m.setLayoutProperty('cadastre', 'visibility', visibility(showCadastre))
+    m.setPaintProperty('cadastre', 'raster-opacity', cadastreOpacity)
     m.setPaintProperty('okresy-fill', 'fill-opacity', fillOpacity(flat))
     m.setPaintProperty('okresy-fill', 'fill-color', fillColor(activePalette))
     // Reuse coarse satellite tiles outside Czech ortho coverage.
     m.setLayerZoomRange('s2', 0, 24)
-  }, [activeBasemap, activePalette, ready])
+  }, [activeBasemap, activePalette, cadastreOpacity, ready, showCadastre])
 
   useEffect(() => {
     const m = map.current
@@ -558,13 +681,15 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     const m = map.current
     if (!m || !drift || !ready || motionReduced) return
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const baseBearing = m.getBearing()
-    const baseZoom = m.getZoom()
+    let baseCenter = m.getCenter()
+    let baseBearing = m.getBearing()
+    let basePitch = m.getPitch()
+    let baseZoom = m.getZoom()
     const poses = [
-      { bearing: -5, pitch: 24, zoom: -0.12 },
-      { bearing: 4, pitch: 32, zoom: 0.08 },
-      { bearing: 7, pitch: 18, zoom: -0.18 },
-      { bearing: -3, pitch: 28, zoom: 0.02 },
+      { bearing: -1.5, zoom: 0.04 },
+      { bearing: 1.5, zoom: -0.04 },
+      { bearing: 0.5, zoom: 0.025 },
+      { bearing: -0.5, zoom: -0.025 },
     ]
     let step = 0
     let disposed = false
@@ -574,29 +699,42 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     const play = () => {
       if (disposed || document.hidden || media.matches || m.isMoving()) return
       const pose = poses[step % poses.length]
-      const duration = step === 0 ? 8000 : 14000
+      const duration = step === 0 ? 9000 : 16000
       step += 1
       ownsAnimation = true
-      // A shallow orbit with dolly and tilt, anchored to Czechia. Native camera
-      // interpolation keeps the imagery and labels synchronized in one render loop.
       m.easeTo({
         bearing: baseBearing + pose.bearing,
-        pitch: pose.pitch,
+        pitch: basePitch,
         zoom: Math.max(m.getMinZoom(), baseZoom + pose.zoom),
-        around: CZECH_CENTER,
+        around: baseCenter,
         duration,
         easing: (t) => (1 - Math.cos(Math.PI * t)) / 2,
       })
     }
     const schedule = () => {
-      ownsAnimation = false
+      if (ownsAnimation) {
+        ownsAnimation = false
+      } else {
+        baseCenter = m.getCenter()
+        baseBearing = m.getBearing()
+        basePitch = m.getPitch()
+        baseZoom = m.getZoom()
+      }
+      if (disposed || document.hidden || media.matches) return
       window.clearTimeout(timer)
-      timer = window.setTimeout(play, 0)
+      timer = window.setTimeout(play, 350)
     }
     const onVisibility = () => {
       window.clearTimeout(timer)
       if (document.hidden || media.matches) {
-        if (ownsAnimation) m.stop()
+        if (ownsAnimation) {
+          m.stop()
+          ownsAnimation = false
+          baseCenter = m.getCenter()
+          baseBearing = m.getBearing()
+          basePitch = m.getPitch()
+          baseZoom = m.getZoom()
+        }
       } else schedule()
     }
     m.on('moveend', schedule)
@@ -633,9 +771,9 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
   return (
     <>
       <div ref={container} className={classes} role="region" aria-label={label} />
-      {tileError && interactive && activeBasemap !== 'dark' && (
+      {tileError && interactive && (
         <p className="map-tile-status" role="status">
-          Snímky se načítají pomalu. Hranice a výsledky jsou dostupné.
+          Mapové dlaždice se načítají pomalu. Hranice, výsledky a výběr parcel zůstávají dostupné.
         </p>
       )}
     </>

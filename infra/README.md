@@ -100,3 +100,77 @@ docker compose -f infra/compose.dev.yml down
 ```
 
 Jde pouze o vývojový stack s výchozím lokálním heslem, bez TLS a produkčního buildu.
+
+## Produkce na VPS přes Coolify
+
+Produkční stack je samostatný soubor `compose.prod.yml`; vývojový Compose
+nepoužívej pro veřejný deploy. Obsahuje statický web a jedinou veřejnou gateway,
+API a MCP bez hostitelských portů, Postgres s persistentním volume a jednorázové
+inicializační kroky. Veřejné Swagger/OpenAPI endpointy jsou vypnuté, mock
+autentizace je při buildu zakázaná a kontejnery API/MCP neběží s reloadem.
+
+### Coolify
+
+1. Vytvoř Docker Compose resource z Git repozitáře. Nastav **Base Directory**
+   `infra` a **Compose Location** `compose.prod.yml`. Build kontexty `..` v
+   Compose souboru míří zpět do kořene repozitáře.
+2. Přidej doménu ke službě **gateway** na interním portu `8080`. Zapni TLS/
+   automatické HTTPS v Coolify; backendový Nginx zůstává za proxy na interní HTTP.
+3. Proměnné z `production.env.example` nastav v Coolify jako šifrované proměnné
+   resource. Produkční `.env` ani JSON service accountu necommituj.
+4. Vygeneruj nové tajné hodnoty, nikoli vývojové defaulty:
+
+   ```sh
+   openssl rand -hex 32  # POSTGRES_PASSWORD
+   openssl rand -hex 48  # JWT_SECRET_KEY
+   ```
+
+   Heslo databáze použij stejné v `POSTGRES_PASSWORD` i `DATABASE_URL`. Hexadecimální
+   tvar nevyžaduje URL-encoding.
+
+5. Šablona předpokládá Vertex AI. Nastav `GOOGLE_CLOUD_PROJECT` a absolutní
+   `GOOGLE_ADC_HOST_PATH` k JSON klíči service accountu na VPS. Soubor ponech mimo
+   repozitář a zpřístupni ho UID/GID `10001` (uživatel API kontejneru), pouze pro
+   čtení, například režimem `0400`. Service accountu přiděl jen potřebnou roli,
+   typicky `Vertex AI User`; pokud VPS poskytuje bezpečnější připojenou identitu,
+   můžeš místo souborového ADC odstranit jeho bind mount i
+   `GOOGLE_APPLICATION_CREDENTIALS`.
+6. Deploy. `db` automaticky ověří extensions, `api-init` aplikuje migrace a `etl`
+   vytvoří prostorové schéma. Teprve poté se spustí API, MCP a gateway.
+
+Do Coolify vystav pouze `gateway:8080`. Databáze, API a MCP nemají publikované
+porty; MCP endpoint není routovaný zvenku. `db_data` a `etl_data` jsou pojmenované
+Docker volumes a přežívají běžné redeploye, ale **nejsou zálohou**.
+
+### Data a provoz
+
+První deploy vytvoří schéma, nikoli datové sady. Po deploy spusť jednorázový import
+z kořene repozitáře na VPS (nebo ekvivalentním Coolify terminálem), se stejnými
+proměnnými produkčního resource:
+
+```sh
+docker compose --env-file .env.production -f infra/compose.prod.yml \
+  run --rm --no-deps etl python -m etl.main --all --keep-going
+```
+
+Import načítá veřejné zdroje, může trvat a některé zdroje mohou být nedostupné;
+`--keep-going` zachová úspěšné vrstvy a neúspěchy vypíše. Neprovádí seed syntetických
+dat ani nemaže existující tabulky. Zdraví ověř přes `https://<doména>/health` a
+`https://<doména>/api/health/db`; Swagger a MCP zůstávají neveřejné.
+
+Naplánuj pravidelné zálohy databáze mimo VPS a ověř obnovu. Například dump:
+
+```sh
+docker compose --env-file .env.production -f infra/compose.prod.yml exec -T db \
+  sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' \
+  > opendata-$(date +%F).dump
+```
+
+Ukládej zálohu šifrovaně mimo server, nastav retenční politiku a chraň také
+credentials pro Vertex AI. Před nasazením můžeš syntaxi Compose ověřit lokálně
+bez spuštění služeb:
+
+```sh
+docker compose --env-file .env.production -f infra/compose.prod.yml config --quiet
+docker compose --env-file .env.production -f infra/compose.prod.yml build
+```

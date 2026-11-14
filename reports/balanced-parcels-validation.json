@@ -1,0 +1,376 @@
+{
+  "live": {
+    "tested_at": "2026-11-14T03:56:21.296062+00:00",
+    "model": "gemini-3.1-flash-lite",
+    "live": true,
+    "cases": [
+      {
+        "id": "balanced-parcels",
+        "question": "Najdi v celé načtené databázi parcelu stejně vzdálenou vzdušně od VOŠ a SPŠE Plzeň, Koterovská 85, a SOUE elektrotechnického, Vejprnická 56. Ukaž pět nejlepších na mapě a skutečné vzdálenosti i jejich rozdíl. Tolerance rozdílu je 25 metrů.",
+        "expected": "balanced",
+        "text": "Prohledal jsem **1,685,998 načtených parcel** v celé načtené databázi. Na mapě zobrazuji 5 kandidátů s nejmenším rozdílem vzdušných vzdáleností.\n\nNejmenší vypočtený rozdíl má **parcela 860/22 (KÚ 722472)**:\n\n- Vyšší odborná škola a Střední průmyslová škola elektrotechnická, Plzeň, Koterovská 85: **3943,69 m**.\n- Střední odborné učiliště elektrotechnické, Plzeň, Vejprnická 56: **3943,68 m**.\n- Rozdíl před zaokrouhlením vzdáleností: **0,0063 m**.\n\nPožadovaná tolerance rozdílu: **25,0 m**. Z 5 zobrazených kandidátů ji splňuje 5.\n\nVzdálenosti měříme od vnitřního bodu parcely k evidovaným bodům institucí, nikoli od vchodu nebo podél cesty. Číselná přesnost výpočtu není přesnost podkladů ani potvrzení rovnosti v terénu. Výběr nezaručuje prodejnost či zastavitelnost a nevztahuje se na chybějící data.",
+        "artifacts": [
+          {
+            "result_id": "d60960e90bb3031f3c8f7680",
+            "title": "Nalezená místa",
+            "view": "map",
+            "columns": [
+              {
+                "key": "name",
+                "label": "Místo",
+                "numeric": false,
+                "additive": false,
+                "unit": ""
+              },
+              {
+                "key": "id",
+                "label": "Identifikátor",
+                "numeric": false,
+                "additive": false,
+                "unit": ""
+              }
+            ],
+            "rows": [
+              {
+                "id": "facility:zabaged-47-3055871076597760",
+                "name": "Vyšší odborná škola a Střední průmyslová škola elektrotechnická, Plzeň, Koterovská 85"
+              }
+            ],
+            "sources": [
+              {
+                "table_name": "facility_poi",
+                "data_kind": "external",
+                "row_count": 3346,
+                "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+              },
+              {
+                "table_name": "osm_poi",
+                "data_kind": "external",
+                "row_count": 4849,
+                "loaded_at": "2026-11-14T03:00:52.588404+00:00"
+              }
+            ],
+            "note": "Bod obce či katastru je vnitřní bod území, nikoliv adresa nebo vstup do budovy.",
+            "sample": false,
+            "value_key": null,
+            "label_key": null,
+            "geometry_count": 1
+          },
+          {
+            "result_id": "dfa9c42e1cb1564dcadb1152",
+            "title": "Nalezená místa",
+            "view": "map",
+            "columns": [
+              {
+                "key": "name",
+                "label": "Místo",
+                "numeric": false,
+                "additive": false,
+                "unit": ""
+              },
+              {
+                "key": "id",
+                "label": "Identifikátor",
+                "numeric": false,
+                "additive": false,
+                "unit": ""
+              }
+            ],
+            "rows": [
+              {
+                "id": "facility:zabaged-47-3056187461337088",
+                "name": "Střední odborné učiliště elektrotechnické, Plzeň, Vejprnická 56"
+              },
+              {
+                "id": "facility:zabaged-47-3056187562000384",
+                "name": "Střední odborné učiliště elektrotechnické, Plzeň, Vejprnická 56"
+              },
+              {
+                "id": "facility:zabaged-47-3056187612332032",
+                "name": "Střední odborné učiliště elektrotechnické, Plzeň, Vejprnická 56"
+              }
+            ],
+            "sources": [
+              {
+                "table_name": "facility_poi",
+                "data_kind": "external",
+                "row_count": 3346,
+                "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+              },
+              {
+                "table_name": "osm_poi",
+                "data_kind": "external",
+                "row_count": 4849,
+                "loaded_at": "2026-11-14T03:00:52.588404+00:00"
+              }
+            ],
+            "note": "Bod obce či katastru je vnitřní bod území, nikoliv adresa nebo vstup do budovy.",
+            "sample": false,
+            "value_key": null,
+            "label_key": null,
+            "geometry_count": 3
+          },
+          {
+            "result_id": "77e2863376fcf872d79d4193",
+            "title": "Parcely s vyrovnanou vzdáleností",
+            "view": "map",
+            "columns": [
+              {
+                "key": "name",
+                "label": "Parcela",
+                "numeric": false,
+                "additive": false,
+                "unit": ""
+              },
+              {
+                "key": "kod_ku",
+                "label": "Kód KÚ",
+                "numeric": false,
+                "additive": false,
+                "unit": ""
+              },
+              {
+                "key": "area_m2",
+                "label": "Výměra",
+                "numeric": true,
+                "additive": false,
+                "unit": "m²"
+              },
+              {
+                "key": "distance_a_m",
+                "label": "K prvnímu místu",
+                "numeric": true,
+                "additive": false,
+                "unit": "m"
+              },
+              {
+                "key": "distance_b_m",
+                "label": "Ke druhému místu",
+                "numeric": true,
+                "additive": false,
+                "unit": "m"
+              },
+              {
+                "key": "difference_m",
+                "label": "Rozdíl vzdáleností",
+                "numeric": true,
+                "additive": false,
+                "unit": "m"
+              },
+              {
+                "key": "within_tolerance",
+                "label": "V toleranci",
+                "numeric": false,
+                "additive": false,
+                "unit": ""
+              }
+            ],
+            "rows": [
+              {
+                "id": "parcela:986674405",
+                "name": "860/22",
+                "kod_ku": 722472.0,
+                "area_m2": 659.0,
+                "land_type": "Ostatní plocha",
+                "distance_a_m": 3943.69,
+                "distance_b_m": 3943.68,
+                "difference_m": 0.0063,
+                "within_tolerance": true
+              },
+              {
+                "id": "parcela:1986207435",
+                "name": "4013/35",
+                "kod_ku": 672645.0,
+                "area_m2": 103.0,
+                "land_type": null,
+                "distance_a_m": 29113.32,
+                "distance_b_m": 29113.33,
+                "difference_m": 0.0068,
+                "within_tolerance": true
+              },
+              {
+                "id": "parcela:1479846404",
+                "name": "210",
+                "kod_ku": 629502.0,
+                "area_m2": 14452.0,
+                "land_type": "Orná půda",
+                "distance_a_m": 41264.27,
+                "distance_b_m": 41264.25,
+                "difference_m": 0.015,
+                "within_tolerance": true
+              },
+              {
+                "id": "parcela:581596434",
+                "name": "51/1",
+                "kod_ku": 629693.0,
+                "area_m2": 537.0,
+                "land_type": null,
+                "distance_a_m": 14443.47,
+                "distance_b_m": 14443.45,
+                "difference_m": 0.0155,
+                "within_tolerance": true
+              },
+              {
+                "id": "parcela:1389478404",
+                "name": "193/44",
+                "kod_ku": 620980.0,
+                "area_m2": 1310.0,
+                "land_type": null,
+                "distance_a_m": 27351.21,
+                "distance_b_m": 27351.22,
+                "difference_m": 0.0172,
+                "within_tolerance": true
+              }
+            ],
+            "sources": [
+              {
+                "table_name": "facility_poi",
+                "data_kind": "external",
+                "row_count": 3346,
+                "loaded_at": "2026-11-14T02:55:57.661551+00:00"
+              },
+              {
+                "table_name": "ruian_parcely",
+                "data_kind": "external",
+                "row_count": 1685998,
+                "loaded_at": "2026-11-14T03:29:39.977180+00:00"
+              }
+            ],
+            "note": "A: Vyšší odborná škola a Střední průmyslová škola elektrotechnická, Plzeň, Koterovská 85. B: Střední odborné učiliště elektrotechnické, Plzeň, Vejprnická 56. Vzdušné geodetické vzdálenosti WGS84 od vnitřního bodu parcely k ověřeným bodům institucí; nejde o vchod, délku cesty ani vzdálenost hranice. Prohledáno 1685998 načtených parcel v celé načtené databázi. Řazeno podle nejmenšího rozdílu, potom menší maximální vzdálenosti. Tolerance 25.0 m je testovaná před zaokrouhlením. Platí pouze pro prohledané načtené parcely, ne chybějící data. Číselná přesnost výpočtu není přesnost zdroje ani důkaz přesné rovnosti v terénu. Pokud žádný řádek není v toleranci, vracíme nejbližší výsledky mimo toleranci; nezaměňuj je za shodu. Výběr neověřuje prodejnost, zastavitelnost ani vhodnost k bydlení.",
+            "sample": false,
+            "value_key": null,
+            "label_key": null,
+            "geometry_count": 7
+          }
+        ],
+        "layer_actions": [],
+        "status": "passed",
+        "seconds": 20.92,
+        "tool_calls": [
+          {
+            "name": "dataset_catalog",
+            "arguments": {}
+          },
+          {
+            "name": "search_amenities",
+            "arguments": {
+              "obec": "Plzeň",
+              "query": "VOŠ a SPŠE Plzeň, Koterovská 85"
+            }
+          },
+          {
+            "name": "search_amenities",
+            "arguments": {
+              "obec": "Plzeň",
+              "query": "SOUE elektrotechnické, Vejprnická 56"
+            }
+          },
+          {
+            "name": "balanced_parcels",
+            "arguments": {
+              "second_id": "facility:zabaged-47-3056187461337088",
+              "tolerance_m": 25,
+              "first_id": "facility:zabaged-47-3055871076597760",
+              "limit": 5
+            },
+            "search": {
+              "first_id": "facility:zabaged-47-3055871076597760",
+              "first_name": "Vyšší odborná škola a Střední průmyslová škola elektrotechnická, Plzeň, Koterovská 85",
+              "second_id": "facility:zabaged-47-3056187461337088",
+              "second_name": "Střední odborné učiliště elektrotechnické, Plzeň, Vejprnická 56",
+              "radius_m": null,
+              "scope": "loaded_parcels",
+              "exhaustive_within_scope": true,
+              "tolerance_m": 25.0,
+              "metric": "geodesic_point_distance",
+              "searched_parcels": 1685998,
+              "matches_in_returned_rows": 5,
+              "global_optimum": false
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "direct_full_database_query": {
+    "seconds": 4.158,
+    "search": {
+      "first_id": "facility:zabaged-47-3055871076597760",
+      "first_name": "Vyšší odborná škola a Střední průmyslová škola elektrotechnická, Plzeň, Koterovská 85",
+      "second_id": "facility:zabaged-47-3056187461337088",
+      "second_name": "Střední odborné učiliště elektrotechnické, Plzeň, Vejprnická 56",
+      "radius_m": null,
+      "scope": "loaded_parcels",
+      "exhaustive_within_scope": true,
+      "tolerance_m": 25,
+      "metric": "geodesic_point_distance",
+      "searched_parcels": 1685998,
+      "matches_in_returned_rows": 5,
+      "global_optimum": false
+    },
+    "rows": [
+      {
+        "id": "parcela:986674405",
+        "name": "860/22",
+        "kod_ku": 722472,
+        "area_m2": 659,
+        "land_type": "Ostatní plocha",
+        "distance_a_m": 3943.69,
+        "distance_b_m": 3943.68,
+        "difference_m": 0.0063,
+        "within_tolerance": true
+      },
+      {
+        "id": "parcela:1986207435",
+        "name": "4013/35",
+        "kod_ku": 672645,
+        "area_m2": 103,
+        "land_type": null,
+        "distance_a_m": 29113.32,
+        "distance_b_m": 29113.33,
+        "difference_m": 0.0068,
+        "within_tolerance": true
+      },
+      {
+        "id": "parcela:1479846404",
+        "name": "210",
+        "kod_ku": 629502,
+        "area_m2": 14452,
+        "land_type": "Orná půda",
+        "distance_a_m": 41264.27,
+        "distance_b_m": 41264.25,
+        "difference_m": 0.015,
+        "within_tolerance": true
+      },
+      {
+        "id": "parcela:581596434",
+        "name": "51/1",
+        "kod_ku": 629693,
+        "area_m2": 537,
+        "land_type": null,
+        "distance_a_m": 14443.47,
+        "distance_b_m": 14443.45,
+        "difference_m": 0.0155,
+        "within_tolerance": true
+      },
+      {
+        "id": "parcela:1389478404",
+        "name": "193/44",
+        "kod_ku": 620980,
+        "area_m2": 1310,
+        "land_type": null,
+        "distance_a_m": 27351.21,
+        "distance_b_m": 27351.22,
+        "difference_m": 0.0172,
+        "within_tolerance": true
+      }
+    ]
+  },
+  "checks": {
+    "spatial_and_agent_tests": 33,
+    "mcp_tests": 2,
+    "python_lint": "passed",
+    "manually_verified_institution_ids": true
+  },
+  "limits": "WGS84 distances between parcel interior points and recorded institution points; no entrance, driving, buildability or source positional accuracy guarantee. Whole database means all loaded parcels, not missing source coverage."
+}

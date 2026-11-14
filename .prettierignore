@@ -17,3 +17,7 @@ etl/output/
 
 **/playwright-report/
 **/test-results/
+
+# Generated live audit output (reviewed reports/ stays checked).
+/api/demo-validation*.json
+/web/src/chat/landing-data.json

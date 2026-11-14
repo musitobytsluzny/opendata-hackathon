@@ -49,3 +49,6 @@ Thumbs.db
 # Browser test output.
 playwright-report/
 test-results/
+
+# Generated live Gemini audit runs; reviewed protocol lives in reports/.
+/api/demo-validation*.json

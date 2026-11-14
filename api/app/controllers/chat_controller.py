@@ -12,7 +12,7 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 
 @router.get("/status", dependencies=[Depends(get_current_user)])
 def chat_status():
-    return {"configured": bool(settings.gemini_api_key.get_secret_value().strip())}
+    return {"configured": settings.gemini_configured}
 
 
 @router.post("/ask", response_model=ChatAnswer, response_model_exclude_none=True)

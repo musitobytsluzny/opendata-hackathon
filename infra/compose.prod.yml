@@ -1,0 +1,161 @@
+x-api-environment: &api-environment
+  DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the production database URL}
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set a strong JWT_SECRET_KEY}
+  JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+  ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+
+services:
+  db:
+    build:
+      context: ..
+      dockerfile: infra/docker/db.Dockerfile
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-opendata}
+      POSTGRES_USER: ${POSTGRES_USER:-opendata}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" && psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc "SELECT count(*) = 2 FROM pg_extension WHERE extname IN (''postgis'', ''vector'')" | grep -qx t',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  api-init:
+    build:
+      context: ..
+      dockerfile: infra/docker/api.prod.Dockerfile
+    environment: *api-environment
+    command: ['python', 'create_tables.py']
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+
+  etl:
+    build:
+      context: ..
+      dockerfile: infra/docker/etl.Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the production database URL}
+    volumes:
+      - etl_data:/app/etl/data
+    command: ['python', '-m', 'etl.main', '--schema']
+    depends_on:
+      api-init:
+        condition: service_completed_successfully
+    restart: 'no'
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/docker/api.prod.Dockerfile
+    environment:
+      <<: *api-environment
+      GEMINI_PROVIDER: ${GEMINI_PROVIDER:-vertex}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:?Set GOOGLE_CLOUD_PROJECT}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-global}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-application-credentials.json
+      GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-60}
+      GEMINI_MAX_OUTPUT_TOKENS: ${GEMINI_MAX_OUTPUT_TOKENS:-2048}
+      LLM_MAX_CONCURRENT: ${LLM_MAX_CONCURRENT:-4}
+      MCP_SERVER_URL: http://mcp:8000/mcp/sse
+    volumes:
+      - type: bind
+        source: ${GOOGLE_ADC_HOST_PATH:?Set the absolute VPS path to the read-only Google ADC JSON file}
+        target: /run/secrets/google-application-credentials.json
+        read_only: true
+    depends_on:
+      db:
+        condition: service_healthy
+      api-init:
+        condition: service_completed_successfully
+      etl:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/db', timeout=5)",
+        ]
+      interval: 15s
+      timeout: 6s
+      retries: 10
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: ..
+      dockerfile: infra/docker/mcp.prod.Dockerfile
+    environment:
+      MCP_DEBUG: 'false'
+      CENTRAL_API_BASE_URL: http://api:8000
+      CENTRAL_API_KEY: ${CENTRAL_API_KEY:-}
+      CENTRAL_API_TIMEOUT: ${CENTRAL_API_TIMEOUT:-30}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: infra/docker/web.prod.Dockerfile
+      args:
+        VITE_API_URL: /api
+        VITE_USE_MOCK_AUTH: 'false'
+    expose: ['8080']
+    depends_on:
+      api:
+        condition: service_healthy
+      mcp:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:rw,noexec,nosuid,size=32m
+      - /var/run:rw,noexec,nosuid,size=4m
+      - /tmp:rw,noexec,nosuid,size=16m
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  etl_data:

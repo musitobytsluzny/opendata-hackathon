@@ -47,17 +47,33 @@ RBAC testy volají běžící API a odstraní pouze své vlastní fixture účty
 testy používají náhodně pojmenovaná PostgreSQL schémata a po doběhu je smažou.
 Spouštěj je na vývojové databázi, nikoliv na produkci.
 
-## Gemini AI Studio + MCP
+## Gemini a MCP
 
-Do jediného kořenového `.env` vlož `GEMINI_API_KEY` a případně `GEMINI_MODEL`.
-Výchozí model je `gemini-3.1-flash-lite`; dostupnost závisí na klíči, regionu a kvótě.
-Klíč se předává pouze kontejneru API, ne webu, MCP, ETL ani `api-init`.
-Není součástí Docker buildu, Git historie ani odpovědí/logovaných chyb.
+Výchozí režim je Gemini Developer API: do kořenového `.env` vlož `GEMINI_API_KEY`
+a případně `GEMINI_MODEL`. Klíč se předává pouze kontejneru API, ne webu, MCP,
+ETL ani `api-init`; není součástí Docker buildu, Git historie ani
+odpovědí/logovaných chyb.
 
 ```sh
 make up
 make check-gemini # explicitní malé živé volání; používá kvótu účtu
 ```
+
+Pro Google Cloud Vertex AI s ADC místo Developer API klíče:
+
+1. Zapni Vertex AI API v Google Cloud projektu s aktivním billingem a uděl
+   přihlašovací identitě roli `Vertex AI User`.
+2. Na hostiteli spusť `gcloud auth application-default login`.
+3. V `.env` nastav `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` a
+   `GOOGLE_ADC_HOST_PATH` na absolutní cestu k hostitelskému souboru
+   `application_default_credentials.json` (typicky
+   `/Users/<uživatel>/.config/gcloud/application_default_credentials.json`).
+4. Spusť `make up-cloud`. Tento Compose override nastaví Vertex režim, klíč
+   Developer API do kontejneru nepředá a připojí ADC soubor jen pro čtení.
+   Ověření živým požadavkem: `make check-gemini-cloud`.
+
+Výchozí `make up` zůstává v režimu Developer API. Model musí být dostupný
+v nastavené lokaci Google Cloud. Nikdy nekopíruj ADC soubor do repozitáře.
 
 Tok je web → autentizované `POST /api/chat/ask` → Gemini → MCP → chráněné
 `/api/data/*` → PostGIS. Každý MCP požadavek předá vlastní uživatelský JWT,
@@ -76,9 +92,9 @@ Konfigurace: `MCP_SERVER_URL`, `GEMINI_TIMEOUT_SECONDS` (celý běh, výchozí 6
 `GEMINI_MAX_OUTPUT_TOKENS` (2048), `LLM_MAX_CONCURRENT` (4 na API proces).
 Jeden uživatel smí mít jeden souběžný chatový požadavek. Běh má nejvýše šest
 modelových kol a dvanáct volání nástrojů. Google se při chybě automaticky neopakuje.
-Kvóta vrací 429, časový limit 504, chybějící klíč/MCP 503; provider detaily se
+Kvóta vrací 429, časový limit 504, chybějící konfigurace/MCP 503; provider detaily se
 klientovi neposílají. `GET /api/chat/status` vrací jen boolean `configured`.
 
-`make test-api` a `make test-mcp` testují klienta bez skutečného Google klíče;
+`make test-api` a `make test-mcp` testují klienta bez skutečných Google credentials;
 CI neprovádí placená živá volání. MCP bridge a čtecí dotazy se testují vůči DB.
 SDK: [Google Gen AI Python](https://googleapis.github.io/python-genai/).

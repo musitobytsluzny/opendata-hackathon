@@ -5,17 +5,31 @@ import logging
 import re
 
 import httpx
+from fastapi import HTTPException
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
 CUZK_BASE_URL = "https://ags.cuzk.gov.cz/arcgis/rest/services/RUIAN/MapServer"
+UAP_BASE_URL = "https://ags.plzensky-kraj.cz/ArcGIS/rest/services/UAP/UAP_ORP_vse/MapServer"
 TIMEOUT_SECONDS = 10.0
 
 
 def _clean_sql_like(val: str) -> str:
     """Sanitize string for SQL LIKE in ArcGIS where clause."""
     return val.replace("'", "''").replace("%", "").replace(";", "")
+
+
+def _attr_val(attrs: dict, *keys: str) -> str | None:
+    """Extract first non-empty string value from ArcGIS identify attributes, ignoring 'Null'."""
+    for key in keys:
+        val = attrs.get(key)
+        if val is None:
+            continue
+        text_val = str(val).strip()
+        if text_val and text_val.lower() != "null":
+            return text_val
+    return None
 
 
 def parse_parcel_number(cislo: str) -> tuple[int, int | None]:
@@ -145,6 +159,10 @@ def search_address(
 
     if query and not clauses:
         clean_q = query.strip()
+        postcode = re.search(r"\b(\d{3})\s?(\d{2})\b", clean_q)
+        if postcode:
+            clauses.append(f"psc = {int(postcode.group(1) + postcode.group(2))}")
+            clean_q = clean_q[: postcode.start()] + clean_q[postcode.end() :]
         num_match = re.search(r"(\d+)(?:/(\d+))?", clean_q)
         if num_match:
             n1 = int(num_match.group(1))
@@ -180,6 +198,8 @@ def search_address(
             resp = client.get(f"{CUZK_BASE_URL}/1/query", params=params)
             resp.raise_for_status()
             data = resp.json()
+            if "error" in data or "features" not in data:
+                raise ValueError("Invalid address response")
             results = []
             for feat in data.get("features", []):
                 attrs = feat.get("attributes", {})
@@ -199,7 +219,9 @@ def search_address(
             return results
     except Exception as e:
         logger.warning("Error searching address in ČÚZK: %s", e)
-        return []
+        raise HTTPException(
+            503, "Adresní služba ČÚZK je nedostupná; nejde o potvrzení neexistující adresy."
+        ) from None
 
 
 def fetch_cadastral_area_by_code(kod_ku: int) -> dict | None:
@@ -346,3 +368,137 @@ def save_parcel_to_db(connection, parcel_feat: dict) -> bool:
         },
     )
     return True
+
+
+def fetch_zoning_at_point(lon: float, lat: float) -> dict:
+    """Fetch spatial planning (ÚAP/ÚPD zoning, buildable status) and radon risk from Plzeňský kraj GIS."""
+    # Tight mapExtent (~1:1,000 scale) ensures layers with minScale=10000 are evaluated by /identify.
+    params = {
+        "geometry": f"{lon},{lat}",
+        "geometryType": "esriGeometryPoint",
+        "sr": "4326",
+        "layers": "all:8,9,11,12,15,441,443,444",
+        "tolerance": "1",
+        "mapExtent": f"{lon - 0.001},{lat - 0.001},{lon + 0.001},{lat + 0.001}",
+        "imageDisplay": "800,600,96",
+        "returnGeometry": "false",
+        "f": "json",
+    }
+
+    functional_uses: list[dict] = []
+    developable_areas: list[dict] = []
+    in_built_up = False
+    built_up_source: str | None = None
+    built_up_date: str | None = None
+    non_developable = False
+    radon_category: str | None = None
+    radon_geology: str | None = None
+
+    try:
+        with httpx.Client(timeout=TIMEOUT_SECONDS) as client:
+            resp = client.get(f"{UAP_BASE_URL}/identify", params=params)
+            resp.raise_for_status()
+            payload = resp.json()
+            if "error" in payload or not isinstance(payload.get("results"), list):
+                raise ValueError("Invalid ArcGIS identify response")
+            results = payload["results"]
+    except Exception as e:
+        logger.warning("Error fetching zoning/radon from Plzeňský kraj GIS: %s", e)
+        return {
+            "zoning_plan": {
+                "available": False,
+                "error": "Geoportál Plzeňského kraje (ÚAP/ÚPD) je momentálně nedostupný.",
+                "source": "Geoportál Plzeňského kraje – ÚAP/ÚPD (ags.plzensky-kraj.cz)",
+            },
+            "radon_risk": None,
+        }
+
+    for item in results:
+        layer_id = item.get("layerId")
+        attrs = item.get("attributes") or {}
+
+        if layer_id in (443, 444):
+            entry = {
+                "kod_funkce": _attr_val(attrs, "kód funkční plochy", "typ prvku", "skupina"),
+                "nazev": _attr_val(attrs, "název jevu ", "název jevu"),
+                "intenzita": _attr_val(attrs, "intenzita využití území"),
+                "puvodni_zneni": _attr_val(
+                    attrs, "původní znění funkčního využití zapracovaného ÚP", "Popis jevu"
+                ),
+                "stav": _attr_val(attrs, "časový horizont jevu"),
+                "zdroj": _attr_val(
+                    attrs, "popis zdroje", "název zdroje", "poskytovatel údaje o území"
+                ),
+                "datum_vydani": _attr_val(attrs, "datum vydání", "datum účinnosti ÚPD"),
+                "soulad_upd": _attr_val(attrs, "zda je v souladu s platnou ÚPD"),
+                "vps_vpo": _attr_val(attrs, "zda jde o veřejně prospěšnou stavbu nebo opatření"),
+            }
+            functional_uses.append({k: v for k, v in entry.items() if v is not None})
+
+        elif layer_id in (8, 9):
+            entry = {
+                "kod_funkce": _attr_val(attrs, "kód funkční plochy", "typ prvku"),
+                "lokalita": _attr_val(
+                    attrs, "číslo lokality dle evidence CzechInvest nebo evidence obce či kraje"
+                ),
+                "popis": _attr_val(attrs, "slovní charakteristika prvku", "Popis jevu"),
+                "stav": _attr_val(attrs, "časový horizont jevu"),
+                "zdroj_dokumentace": _attr_val(
+                    attrs, "název dokumentace vymezující plochu", "název zdroje"
+                ),
+                "vps_vpo": _attr_val(attrs, "zda jde o veřejně prospěšnou stavbu nebo opatření"),
+            }
+            developable_areas.append({k: v for k, v in entry.items() if v is not None})
+
+        elif layer_id in (11, 12):
+            in_built_up = True
+            built_up_source = built_up_source or _attr_val(
+                attrs, "název zdroje", "poskytovatel údaje o území"
+            )
+            built_up_date = built_up_date or _attr_val(attrs, "datum vydání")
+
+        elif layer_id == 15:
+            non_developable = True
+
+        elif layer_id == 441:
+            radon_category = radon_category or _attr_val(attrs, "kategorie (typ) prvku")
+            radon_geology = radon_geology or _attr_val(
+                attrs, "doplňující poznámka", "slovní charakteristika prvku"
+            )
+
+    built_up_meta = None
+    if built_up_source and built_up_date:
+        built_up_meta = f"{built_up_source} ({built_up_date})"
+    elif built_up_source:
+        built_up_meta = built_up_source
+
+    return {
+        "zoning_plan": {
+            "available": bool(
+                functional_uses or developable_areas or in_built_up or non_developable
+            ),
+            "in_built_up_area": True if in_built_up else None,
+            "built_up_area_source": built_up_meta,
+            "is_developable_area": (None if non_developable else True)
+            if developable_areas
+            else (False if non_developable else None),
+            "is_non_developable_parcel": True if non_developable else None,
+            "conflicting_designations": bool(developable_areas and non_developable),
+            "assessment_scope": "reference_point_only",
+            "building_permission": "not_assessed",
+            "source_url": UAP_BASE_URL,
+            "note": "Orientační bodový dotaz do ÚAP s tolerancí identify. Neověřuje celou parcelu, úplnost ani aktuální platnost územního plánu; radonová kategorie není měření na pozemku. Chybějící nález neprokazuje nezastavitelnost.",
+            "functional_uses": functional_uses,
+            "developable_areas": developable_areas,
+            "source": "Geoportál Plzeňského kraje – ÚAP/ÚPD (ags.plzensky-kraj.cz)",
+        },
+        "radon_risk": (
+            {
+                "category": radon_category,
+                "geology": radon_geology,
+                "source": "Česká geologická služba (ÚAP Plzeňského kraje)",
+            }
+            if radon_category
+            else None
+        ),
+    }

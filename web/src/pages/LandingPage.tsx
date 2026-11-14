@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Icon } from '../components/Icon'
-import { PENDING_QUESTION_KEY, formatValue, normalize, type Answer } from '../chat/assistant'
-import { SAMPLES } from '../chat/samples'
+import { PENDING_QUESTION_KEY } from '../chat/assistant'
+import { SAMPLES, SAMPLE_DATE } from '../chat/samples'
 import { MiniKraj } from '../map/MiniKraj'
 import { RegionMap } from '../map/LazyRegionMap'
 import type { OkresId } from '../map/geo'
@@ -10,64 +10,35 @@ import { Link } from '../router/Link'
 import { useAuth } from '../auth/AuthContext'
 import './LandingPage.css'
 
-const DEMOS: { q: string; a: Answer }[] = SAMPLES.slice(0, 2).map(({ question, answer }) => ({
-  q: question,
-  a: answer,
-}))
+const ALL_CATEGORIES = 'Všechna témata'
+const CATEGORIES = [ALL_CATEGORIES, ...new Set(SAMPLES.map((sample) => sample.category))]
+type HeroPhase = 'question' | 'locating' | 'answer' | 'done'
+type HeroPlayback = { phase: HeroPhase; typedQuestion: number; typedAnswer: number }
 
-const SAMPLE_CARDS = SAMPLES.map((sample) => ({
-  ...sample,
-  values: sample.answer.rows ? normalize(sample.answer.rows) : null,
-}))
-
-type Phase = 'typing' | 'thinking' | 'answer'
-
-function useDemo() {
-  const reduced = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches, [])
-  const [index, setIndex] = useState(0)
-  const [typed, setTyped] = useState(reduced ? DEMOS[0].q.length : 0)
-  const [phase, setPhase] = useState<Phase>(reduced ? 'answer' : 'typing')
-
-  useEffect(() => {
-    if (reduced) return
-    const q = DEMOS[index].q
-    let t: number
-    if (phase === 'typing') {
-      t = window.setTimeout(
-        () => (typed < q.length ? setTyped(typed + 1) : setPhase('thinking')),
-        typed === 0 ? 700 : 38,
-      )
-    } else if (phase === 'thinking') {
-      t = window.setTimeout(() => setPhase('answer'), 900)
-    } else {
-      t = window.setTimeout(() => {
-        setIndex((index + 1) % DEMOS.length)
-        setTyped(0)
-        setPhase('typing')
-      }, 6500)
-    }
-    return () => window.clearTimeout(t)
-  }, [index, typed, phase, reduced])
-
-  return { demo: DEMOS[index], index, typed, phase }
+function initialHeroPlayback(sample: (typeof SAMPLES)[number], complete: boolean): HeroPlayback {
+  return {
+    phase: complete ? 'done' : 'question',
+    typedQuestion: complete ? sample.question.length : 0,
+    typedAnswer: complete ? sample.answer.length : 0,
+  }
 }
 
 export function LandingPage() {
   const { user } = useAuth()
-  const { demo, typed, phase } = useDemo()
+  const reducedMotion = useMemo(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  )
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [playback, setPlayback] = useState<HeroPlayback>(() =>
+    initialHeroPlayback(SAMPLES[0], reducedMotion),
+  )
+  const [category, setCategory] = useState(ALL_CATEGORIES)
   const [question, setQuestion] = useState('')
   const [hovered, setHovered] = useState<OkresId | null>(null)
-
-  const shown = phase === 'answer' ? demo.a : null
-  const values = useMemo(() => (shown?.rows ? normalize(shown.rows) : null), [shown])
-  const labels = useMemo(
-    () =>
-      shown?.rows
-        ? Object.fromEntries(
-            shown.rows.map((r) => [r.okres, formatValue(r.value, shown.unit, shown.signed)]),
-          )
-        : null,
-    [shown],
+  const demo = SAMPLES[selectedIndex]
+  const visibleSamples = SAMPLES.map((sample, index) => ({ sample, index })).filter(
+    ({ sample }) => category === ALL_CATEGORIES || sample.category === category,
   )
 
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 900px)').matches)
@@ -80,12 +51,55 @@ export function LandingPage() {
   const heroPadding = useMemo(
     () =>
       narrow
-        ? { top: 100, right: 56, bottom: 400, left: 56 }
+        ? { top: 90, right: 28, bottom: 400, left: 28 }
         : { top: 120, right: 72, bottom: 72, left: Math.round(window.innerWidth * 0.46) },
     [narrow],
   )
 
   const start = user ? routes.map : `${routes.login}?registrace`
+
+  useEffect(() => {
+    if (reducedMotion) return
+    let timer: number
+    if (playback.phase === 'question') {
+      timer = window.setTimeout(
+        () =>
+          setPlayback((current) => {
+            const typedQuestion = Math.min(current.typedQuestion + 1, demo.question.length)
+            return {
+              ...current,
+              typedQuestion,
+              phase: typedQuestion === demo.question.length ? 'locating' : 'question',
+            }
+          }),
+        playback.typedQuestion === 0 ? 500 : 24,
+      )
+    } else if (playback.phase === 'locating') {
+      timer = window.setTimeout(
+        () => setPlayback((current) => ({ ...current, phase: 'answer' })),
+        1100,
+      )
+    } else if (playback.phase === 'answer') {
+      timer = window.setTimeout(
+        () =>
+          setPlayback((current) => {
+            const typedAnswer = Math.min(current.typedAnswer + 1, demo.answer.length)
+            return {
+              ...current,
+              typedAnswer,
+              phase: typedAnswer === demo.answer.length ? 'done' : 'answer',
+            }
+          }),
+        playback.typedAnswer === 0 ? 200 : 20,
+      )
+    }
+    return () => window.clearTimeout(timer)
+  }, [demo.answer.length, demo.question.length, playback, reducedMotion])
+
+  function selectSample(index: number) {
+    setSelectedIndex(index)
+    setPlayback(initialHeroPlayback(SAMPLES[index], reducedMotion))
+  }
 
   function askAndStart(q: string) {
     try {
@@ -111,9 +125,9 @@ export function LandingPage() {
         <div className="hero__map" aria-hidden="true">
           <RegionMap
             interactive={false}
-            values={values}
-            labels={labels}
             padding={heroPadding}
+            overlay={demo.features}
+            overlayKey={playback.phase === 'question' ? undefined : `landing-${selectedIndex}`}
             drift
             hoverable
             hovered={hovered}
@@ -144,6 +158,29 @@ export function LandingPage() {
             Napište otázku běžnou češtinou. Odpověď najdeme v otevřených datech a ukážeme ji přímo
             na mapě kraje.
           </p>
+          <div className="hero__exchange" role="group" aria-label="Ukázka dotazu a odpovědi">
+            <div className="hero__prompt">
+              <span className="hero__prompt-label">Váš dotaz</span>
+              <span className="hero__prompt-text">
+                {demo.question.slice(0, playback.typedQuestion)}
+                {playback.phase === 'question' && <span className="caret" aria-hidden="true" />}
+              </span>
+            </div>
+            {playback.phase === 'locating' && (
+              <span className="hero__wait">Hledám parcelu v katastru…</span>
+            )}
+            {(playback.phase === 'answer' || playback.phase === 'done') && (
+              <div className="hero__answer">
+                <span>
+                  {demo.answer.slice(0, playback.typedAnswer)}
+                  {playback.phase === 'answer' && <span className="caret" aria-hidden="true" />}
+                </span>
+                <small>
+                  {demo.source_label} · {SAMPLE_DATE}
+                </small>
+              </div>
+            )}
+          </div>
           <div className="hero__actions">
             <Link href={start} className="btn btn--primary">
               Začít se ptát
@@ -154,51 +191,74 @@ export function LandingPage() {
             </a>
           </div>
         </div>
-
-        <figure className="hero__quote" aria-live="off">
-          <blockquote>
-            „{demo.q.slice(0, typed)}
-            {phase === 'typing' ? <span className="caret" /> : '“'}
-          </blockquote>
-          <figcaption>
-            {shown ? (
-              <span key={demo.q} className="hero__answer">
-                {shown.text}
-                <small>Ukázková data</small>
-              </span>
-            ) : (
-              <span className="hero__wait">
-                {phase === 'thinking' ? 'Hledám v otevřených datech…' : '\u00a0'}
-              </span>
-            )}
-          </figcaption>
-        </figure>
       </section>
 
       <section className="series-demo" aria-labelledby="series-title">
         <h2 id="series-title" className="section-title">
-          Každá otázka obarví kraj jinak.
+          Začněte tématem, ne datovým katalogem.
         </h2>
         <p className="series-demo__lead">
-          Odpovědi se vám skládají do řady malých map. Jedním kliknutím se vrátíte k té, kterou
-          potřebujete.
+          Vyberte oblast zájmu a prohlédněte si konkrétní ukázku, její zdroj i omezení. Jde o předem
+          načtené veřejné výsledky, ne o živou odpověď na váš dotaz.
         </p>
+        <div className="series-demo__categories" role="group" aria-label="Kategorie ukázek">
+          {CATEGORIES.map((item) => (
+            <button
+              key={item}
+              type="button"
+              aria-pressed={category === item}
+              onClick={() => {
+                setCategory(item)
+                if (item !== ALL_CATEGORIES && demo.category !== item) {
+                  const firstMatch = SAMPLES.findIndex((sample) => sample.category === item)
+                  if (firstMatch >= 0) selectSample(firstMatch)
+                }
+              }}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
         <ol className="series-demo__grid">
-          {SAMPLE_CARDS.map((s) => (
-            <li key={s.question}>
+          {visibleSamples.map(({ sample, index }) => (
+            <li key={sample.question}>
               <button
                 type="button"
                 className="series-demo__item"
-                onClick={() => askAndStart(s.question)}
+                aria-pressed={selectedIndex === index}
+                onClick={() => selectSample(index)}
               >
-                <MiniKraj values={s.values} size={150} tone="dark" />
-                <span className="series-demo__metric">{s.answer.metric}</span>
-                <span className="series-demo__q">{s.question}</span>
+                <MiniKraj features={sample.features} size={150} tone="dark" />
+                <span className="series-demo__metric">{sample.category}</span>
+                <span className="series-demo__q">{sample.title}</span>
+                <span className="series-demo__question">{sample.question}</span>
               </button>
             </li>
           ))}
         </ol>
-        <p className="series-demo__note">Ukázková data</p>
+        <article className="series-demo__result" aria-live="polite" aria-label="Vybraná ukázka">
+          <div>
+            <span className="series-demo__metric">{demo.category}</span>
+            <h3>{demo.title}</h3>
+            <p className="series-demo__result-question">{demo.question}</p>
+          </div>
+          <div>
+            <p>{demo.answer}</p>
+            <small>
+              {demo.source_label} · Datový snímek {SAMPLE_DATE}
+            </small>
+            <button
+              className="btn btn--primary"
+              type="button"
+              onClick={() => askAndStart(demo.question)}
+            >
+              Položit tuto otázku v chatu <Icon name="arrow" size={16} />
+            </button>
+          </div>
+        </article>
+        <p className="series-demo__note">
+          Kliknutím zobrazíte podrobnosti ukázky. Mapa nahoře ukazuje právě vybranou geometrii.
+        </p>
       </section>
 
       <section className="how" aria-labelledby="how-title">
@@ -209,8 +269,8 @@ export function LandingPage() {
           <li>
             <h3>Zeptáte se</h3>
             <p>
-              Jak byste se zeptali souseda: „Kolik obyvatel mají dostupné obce?“ Žádná znalost
-              datových portálů.
+              Třeba: „Leží pozemek v záplavovém území a jaká je dostupnost školy a MHD?“ Bez hledání
+              správných vrstev a datových portálů.
             </p>
           </li>
           <li>
@@ -219,7 +279,10 @@ export function LandingPage() {
           </li>
           <li>
             <h3>Ukážeme je na mapě</h3>
-            <p>Okresy se rozsvítí podle výsledku. U každé odpovědi uvidíte, odkud čísla jsou.</p>
+            <p>
+              Parcely, trasy a okolní služby na mapě. Srovnání v grafu nebo tabulce a podklady u
+              výsledků.
+            </p>
           </li>
         </ol>
       </section>
@@ -230,15 +293,14 @@ export function LandingPage() {
             Každá odpověď má zdroj.
           </h2>
           <p>
-            Mapa stojí na ortofotu Českého úřadu zeměměřického a katastrálního a satelitních
-            snímcích Copernicus. Odpovědi zatím běží na ukázkových datech, napojení na zdroje níže
-            se připravuje.
+            Pracujeme s načtenými daty ČÚZK, ČSÚ, VÚV a AOPK, mapovými údaji OpenStreetMap a
+            zastávkami PMDP. U výsledků uvádíme použité podklady a omezení jejich pokrytí.
           </p>
         </div>
         <dl className="sources__list">
           <div>
             <dt>ČÚZK</dt>
-            <dd>Ortofoto a hranice kraje a okresů</dd>
+            <dd>Ortofoto, adresy, parcely, hranice a občanská vybavenost</dd>
             <dd className="sources__state sources__state--live">Používáme</dd>
           </div>
           <div>
@@ -248,23 +310,23 @@ export function LandingPage() {
           </div>
           <div>
             <dt>Český statistický úřad</dt>
-            <dd>Obyvatelstvo, bydlení, ekonomika obcí</dd>
-            <dd className="sources__state">Připravujeme</dd>
+            <dd>Počet obyvatel a věkové složení obcí</dd>
+            <dd className="sources__state sources__state--live">Používáme</dd>
           </div>
           <div>
-            <dt>MPSV</dt>
-            <dd>Nezaměstnanost a trh práce</dd>
-            <dd className="sources__state">Připravujeme</dd>
+            <dt>VÚV · AOPK</dt>
+            <dd>Záplavová a chráněná území</dd>
+            <dd className="sources__state sources__state--live">Používáme</dd>
           </div>
           <div>
-            <dt>MŠMT</dt>
-            <dd>Rejstřík škol a školských zařízení</dd>
-            <dd className="sources__state">Připravujeme</dd>
+            <dt>OpenStreetMap</dt>
+            <dd>Pěší síť, přechody, komunikace a okolní služby</dd>
+            <dd className="sources__state sources__state--live">Používáme</dd>
           </div>
           <div>
-            <dt>Národní katalog otevřených dat</dt>
-            <dd>Datové sady Plzeňského kraje a obcí</dd>
-            <dd className="sources__state">Připravujeme</dd>
+            <dt>PMDP</dt>
+            <dd>Polohy zastávek městské dopravy</dd>
+            <dd className="sources__state sources__state--live">Používáme</dd>
           </div>
         </dl>
       </section>
@@ -279,7 +341,7 @@ export function LandingPage() {
             id="close-input"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Třeba: Kde mají dostupné obce nejvíc zeleně?"
+            placeholder="Třeba: Prověř parcelu na adrese Koterovská 85, Plzeň na záplavy a chráněná území"
             autoComplete="off"
           />
           <button type="submit" aria-label="Položit dotaz">

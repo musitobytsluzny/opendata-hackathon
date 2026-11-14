@@ -29,8 +29,11 @@ export async function apiFetch<T>(path: string, options: ApiRequest = {}): Promi
   const res = await fetch(`${API_URL}${path}`, { ...init, headers })
 
   if (res.status === 401 && auth) {
-    tokenStorage.clear()
-    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    // A delayed response for a previous login must not clear a newer session.
+    if (tokenStorage.get() === token) {
+      tokenStorage.clear()
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    }
     throw new ApiError(401, 'Nepřihlášen')
   }
 
@@ -47,7 +50,11 @@ export async function apiFetch<T>(path: string, options: ApiRequest = {}): Promi
                   `${error.loc?.slice(1).join('.') ?? ''}: ${error.msg ?? 'Neplatná hodnota'}`,
               )
               .join('; ')
-          : 'Služba teď neodpovídá. Zkuste to prosím za chvíli.'
+          : res.status === 429
+            ? 'Příliš mnoho požadavků. Chvíli počkejte a zkuste to znovu.'
+            : res.status === 413
+              ? 'Požadavek je příliš velký. Zkraťte jej prosím.'
+              : 'Služba teď neodpovídá. Zkuste to prosím za chvíli.'
     throw new ApiError(res.status, message)
   }
 

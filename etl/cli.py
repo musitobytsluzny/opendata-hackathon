@@ -10,7 +10,9 @@ from etl.db import transaction
 from etl.downloaders.aopk import fetch_and_load_aopk
 from etl.downloaders.chmu import fetch_and_load_chmu
 from etl.downloaders.csu import fetch_and_load_csu
+from etl.downloaders.facilities import fetch_and_load_facilities, load_pmdp_stops
 from etl.downloaders.osm import fetch_and_load_osm
+from etl.downloaders.osm_extract import fetch_and_load_route_features
 from etl.downloaders.parcels import fetch_and_load_parcels
 from etl.downloaders.ruian import load_ruian_from_local_or_remote
 from etl.downloaders.vuv import fetch_and_load_vuv
@@ -30,7 +32,20 @@ def main(argv=None):
         "--schema", action="store_true", help="Apply schema/functions without data or downloads"
     )
     actions.add_argument(
-        "--dataset", choices=["ruian", "csu", "vuv", "aopk", "zabaged", "osm", "chmu", "parcels"]
+        "--dataset",
+        choices=[
+            "ruian",
+            "csu",
+            "vuv",
+            "aopk",
+            "zabaged",
+            "osm",
+            "chmu",
+            "parcels",
+            "facilities",
+            "pmdp",
+            "route-context",
+        ],
     )
     actions.add_argument(
         "--all", action="store_true", help="Import real data without truncating existing tables"
@@ -52,6 +67,17 @@ def main(argv=None):
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     if args.keep_going:
         return run_pipeline(force=args.force, reset=args.reset)
+    if args.dataset in {"facilities", "pmdp"} and not args.reset:
+        loader = fetch_and_load_facilities if args.dataset == "facilities" else load_pmdp_stops
+        return loader(force_download=args.force)
+    if args.dataset == "route-context" and not args.reset:
+        return fetch_and_load_route_features(force_download=args.force)
+    if args.dataset == "parcels" and not args.reset:
+        with transaction():
+            seed_schema()
+            seed_lookups()
+            seed_administrative_hierarchy()
+        return fetch_and_load_parcels(force_download=args.force)
     # Release DDL locks before long network downloads / geometry imports.
     # Explicit reset stays atomic with its import.
     if not args.reset:
@@ -76,6 +102,9 @@ def main(argv=None):
             "zabaged": fetch_and_load_zabaged,
             "osm": fetch_and_load_osm,
             "chmu": fetch_and_load_chmu,
+            "facilities": fetch_and_load_facilities,
+            "pmdp": load_pmdp_stops,
+            "route-context": fetch_and_load_route_features,
             "parcels": fetch_and_load_parcels,
         }
         for name, loader in loaders.items():
@@ -88,7 +117,19 @@ def main(argv=None):
                 logger.info("Imported %s: %s rows", name, count)
 
 
-DATASETS = ("ruian", "csu", "vuv", "aopk", "zabaged", "osm", "chmu", "parcels")
+DATASETS = (
+    "ruian",
+    "csu",
+    "vuv",
+    "aopk",
+    "zabaged",
+    "osm",
+    "chmu",
+    "facilities",
+    "pmdp",
+    "route-context",
+    "parcels",
+)
 
 
 def run_pipeline(force=False, reset=False):

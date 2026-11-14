@@ -31,10 +31,24 @@ class GeoDataTests(unittest.TestCase):
             )
             connection.execute(text("CREATE TABLE okresy (kod_okresu text, nazev text)"))
             connection.execute(text("CREATE TABLE ruian_obce (kod_obce int, kod_okresu text)"))
+            connection.execute(text("CREATE TABLE ruian_ku (kod_ku int, nazev text)"))
+            connection.execute(
+                text(
+                    "CREATE TABLE ruian_parcely (id text, kod_ku int, cislo_parcely text, druh_pozemku text, vymera_m2 int)"
+                )
+            )
             connection.execute(
                 text(
                     "CREATE TABLE csu_demografie_obce (kod_obce int, rok int, pocet_obyvatel int, seniori_65_plus int, deti_0_14 int)"
                 )
+            )
+            connection.execute(
+                text("""
+                    CREATE FUNCTION fn_prevalidate_parcel(integer, text)
+                    RETURNS jsonb LANGUAGE sql AS $$
+                        SELECT jsonb_build_object('status', 'not_found')
+                    $$
+                """)
             )
 
     def cleanup(self):
@@ -69,3 +83,18 @@ class GeoDataTests(unittest.TestCase):
             connection.execute(text("INSERT INTO ruian_obce VALUES(1,'test')"))
         with self.assertRaises(ValueError):
             geo_data.statistics("population); DROP TABLE users; --")
+
+    def test_bare_parent_parcel_number_returns_existing_subparcels(self):
+        with self.db.begin() as connection:
+            connection.execute(text("INSERT INTO ruian_ku VALUES (722120, 'Bolevec')"))
+            connection.execute(
+                text(
+                    "INSERT INTO ruian_parcely VALUES ('1', 722120, '438/1', 'zahrada', 500), ('2', 722120, '438/2', 'zahrada', 700)"
+                )
+            )
+        result = geo_data.prevalidate_parcel("438", kod_ku=722120)
+        self.assertEqual(result["status"], "ambiguous")
+        self.assertEqual(
+            [candidate["cislo_parcely"] for candidate in result["candidates"]], ["438/1", "438/2"]
+        )
+        self.assertIn("Upřesněte celé číslo parcely", result["message"])
