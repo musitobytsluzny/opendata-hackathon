@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" font-family="Onest, Inter, 'Segoe UI', Helvetica, Arial, 'DejaVu Sans', sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0.8 L9 5 L0 9.2 z" fill="#3f4955"/></marker>
+    <marker id="v" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0.8 L9 5 L0 9.2 z" fill="#6d3fd6"/></marker>
+    <marker id="b" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0.8 L9 5 L0 9.2 z" fill="#2563eb"/></marker>
+    <marker id="o" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0.8 L9 5 L0 9.2 z" fill="#b8690b"/></marker>
+    <filter id="s" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#10151a" flood-opacity="0.1"/></filter>
+  </defs>
+  <rect width="1920" height="1080" fill="#f6f7f5"/>
+  <text x="40" y="76" font-size="46" font-weight="700" fill="#10151a" letter-spacing="-1">Architektura: Kartogram</text>
+  <rect x="330" y="116" width="1100" height="650" rx="24" fill="#e9f1f9" stroke="#2f7fd1" stroke-width="3" stroke-dasharray="12 9"/>
+  <text x="362" y="162" font-size="28" font-weight="700" fill="#1f66b3">Docker Compose</text>
+
+  <rect x="40" y="380" width="230" height="120" rx="16" fill="#ffffff" stroke="#7d8896" stroke-width="3" filter="url(#s)"/>
+  <rect x="64" y="411" width="18" height="18" rx="4" fill="#7d8896"/>
+  <text x="94" y="430" font-size="30" font-weight="700" fill="#10151a" letter-spacing="-0.4">Uživatel</text>
+  <text x="64" y="466" font-size="21" fill="#4f5a67" text-anchor="start">prohlížeč</text>
+  <rect x="40" y="590" width="230" height="130" rx="16" fill="#fbfbfa" stroke="#7d8896" stroke-width="3" stroke-dasharray="8 6" filter="url(#s)"/>
+  <rect x="64" y="617" width="18" height="18" rx="4" fill="#7d8896"/>
+  <text x="94" y="636" font-size="26" font-weight="700" fill="#10151a" letter-spacing="-0.4">Dlaždice</text>
+  <text x="64" y="670" font-size="20" fill="#4f5a67" text-anchor="start">ortofoto ČÚZK</text>
+  <text x="64" y="698" font-size="20" fill="#4f5a67" text-anchor="start">Sentinel-2</text>
+  <rect x="370" y="320" width="220" height="240" rx="16" fill="#f1fbf6" stroke="#0a8f5b" stroke-width="3" filter="url(#s)"/>
+  <rect x="394" y="349" width="18" height="18" rx="4" fill="#0a8f5b"/>
+  <text x="424" y="368" font-size="30" font-weight="700" fill="#10151a" letter-spacing="-0.4">Nginx</text>
+  <text x="394" y="400" font-size="20" fill="#4f5a67" text-anchor="start">reverse proxy</text>
+  <text x="394" y="450" font-size="21" fill="#0b6b46" text-anchor="start" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace">/</text>
+  <text x="566" y="450" font-size="21" fill="#0b6b46" text-anchor="end" font-weight="700">→ Web</text>
+  <text x="394" y="488" font-size="21" fill="#0b6b46" text-anchor="start" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace">/api</text>
+  <text x="566" y="488" font-size="21" fill="#0b6b46" text-anchor="end" font-weight="700">→ API</text>
+  <text x="394" y="526" font-size="21" fill="#0b6b46" text-anchor="start" font-family="'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace">/mcp</text>
+  <text x="566" y="526" font-size="21" fill="#0b6b46" text-anchor="end" font-weight="700">→ MCP</text>
+  <rect x="690" y="150" width="330" height="130" rx="16" fill="#ffffff" stroke="#0e9ad6" stroke-width="3" filter="url(#s)"/>
+  <rect x="716" y="181" width="18" height="18" rx="4" fill="#0e9ad6"/>
+  <text x="746" y="200" font-size="30" font-weight="700" fill="#10151a" letter-spacing="-0.4">Web</text>
+  <text x="716" y="238" font-size="21" fill="#2b3440" text-anchor="start">React · TypeScript</text>
+  <text x="716" y="266" font-size="21" fill="#2b3440" text-anchor="start">MapLibre GL</text>
+  <rect x="690" y="340" width="330" height="190" rx="16" fill="#ffffff" stroke="#2563eb" stroke-width="3" filter="url(#s)"/>
+  <rect x="716" y="373" width="18" height="18" rx="4" fill="#2563eb"/>
+  <text x="746" y="392" font-size="30" font-weight="700" fill="#10151a" letter-spacing="-0.4">API</text>
+  <text x="716" y="430" font-size="21" fill="#2b3440" text-anchor="start">FastAPI · Python</text>
+  <text x="716" y="464" font-size="21" fill="#4f5a67" text-anchor="start">přihlášení a role</text>
+  <text x="716" y="494" font-size="21" fill="#4f5a67" text-anchor="start">data a chat</text>
+  <rect x="690" y="610" width="330" height="130" rx="16" fill="#ffffff" stroke="#6d3fd6" stroke-width="3" filter="url(#s)"/>
+  <rect x="716" y="641" width="18" height="18" rx="4" fill="#6d3fd6"/>
+  <text x="746" y="660" font-size="30" font-weight="700" fill="#10151a" letter-spacing="-0.4">MCP server</text>
+  <text x="716" y="698" font-size="21" fill="#2b3440" text-anchor="start">FastMCP · Python</text>
+  <text x="716" y="726" font-size="21" fill="#4f5a67" text-anchor="start">nástroje pro model</text>
+  <rect x="1120" y="150" width="270" height="130" rx="16" fill="#ffffff" stroke="#d97706" stroke-width="3" filter="url(#s)"/>
+  <rect x="1146" y="181" width="18" height="18" rx="4" fill="#d97706"/>
+  <text x="1176" y="200" font-size="30" font-weight="700" fill="#10151a" letter-spacing="-0.4">ETL</text>
+  <text x="1146" y="238" font-size="21" fill="#2b3440" text-anchor="start">Python · GeoPandas</text>
+  <text x="1146" y="266" font-size="21" fill="#4f5a67" text-anchor="start">import dat</text>
+  <g filter="url(#s)"><path d="M1120 560 v150 a135 26 0 0 0 270 0 v-150" fill="#ffffff" stroke="#336791" stroke-width="3"/><ellipse cx="1255" cy="560" rx="135" ry="26" fill="#dde9f5" stroke="#336791" stroke-width="3"/></g>
+  <text x="1255" y="640" font-size="30" fill="#10151a" text-anchor="middle" font-weight="700">PostgreSQL</text>
+  <text x="1255" y="676" font-size="22" fill="#2b3440" text-anchor="middle">PostGIS</text>
+  <rect x="1510" y="140" width="370" height="150" rx="16" fill="#fffaf2" stroke="#d97706" stroke-width="3" stroke-dasharray="8 6" filter="url(#s)"/>
+  <rect x="1536" y="171" width="18" height="18" rx="4" fill="#d97706"/>
+  <text x="1566" y="190" font-size="28" font-weight="700" fill="#10151a" letter-spacing="-0.4">Otevřená data</text>
+  <text x="1536" y="230" font-size="21" fill="#2b3440" text-anchor="start">ČÚZK, ČSÚ, AOPK, VÚV,</text>
+  <text x="1536" y="260" font-size="21" fill="#2b3440" text-anchor="start">ČHMÚ, OpenStreetMap, PMDP</text>
+  <rect x="1510" y="340" width="370" height="130" rx="16" fill="#f7f4fe" stroke="#6d3fd6" stroke-width="3" stroke-dasharray="8 6" filter="url(#s)"/>
+  <rect x="1536" y="373" width="18" height="18" rx="4" fill="#6d3fd6"/>
+  <text x="1566" y="392" font-size="30" font-weight="700" fill="#10151a" letter-spacing="-0.4">Gemini</text>
+  <text x="1536" y="430" font-size="21" fill="#2b3440" text-anchor="start">Google GenAI API</text>
+  <rect x="1510" y="540" width="370" height="140" rx="16" fill="#fbfbfa" stroke="#64748b" stroke-width="3" stroke-dasharray="8 6" filter="url(#s)"/>
+  <rect x="1536" y="571" width="18" height="18" rx="4" fill="#64748b"/>
+  <text x="1566" y="590" font-size="28" font-weight="700" fill="#10151a" letter-spacing="-0.4">Živé služby</text>
+  <text x="1536" y="628" font-size="21" fill="#2b3440" text-anchor="start">ČÚZK RÚIAN</text>
+  <text x="1536" y="658" font-size="21" fill="#2b3440" text-anchor="start">ÚAP Plzeňského kraje</text>
+  <g fill="none" stroke="#3f4955" stroke-width="3">
+    <line x1="270" y1="440" x2="364" y2="440" marker-end="url(#a)"/>
+    <line x1="155" y1="500" x2="155" y2="584" stroke-dasharray="8 6" marker-end="url(#a)"/>
+    <polyline points="590,380 640,380 640,215 684,215" marker-end="url(#a)"/>
+    <line x1="590" y1="440" x2="684" y2="440" marker-end="url(#a)"/>
+    <polyline points="590,500 640,500 640,675 684,675" marker-end="url(#a)"/>
+    <polyline points="1020,500 1068,500 1068,640 1114,640" marker-start="url(#a)" marker-end="url(#a)"/>
+  </g>
+  <line x1="1310" y1="280" x2="1310" y2="532" stroke="#b8690b" stroke-width="3" marker-end="url(#o)"/>
+  <line x1="1510" y1="215" x2="1396" y2="215" stroke="#b8690b" stroke-width="3" marker-end="url(#o)"/>
+  <line x1="1020" y1="390" x2="1504" y2="390" stroke="#e9f1f9" stroke-width="12"/>
+  <line x1="1020" y1="390" x2="1504" y2="390" stroke="#6d3fd6" stroke-width="3.5" marker-start="url(#v)" marker-end="url(#v)"/>
+  <polyline points="1020,446 1466,446 1466,610 1504,610" fill="none" stroke="#e9f1f9" stroke-width="12"/>
+  <polyline points="1020,446 1466,446 1466,610 1504,610" fill="none" stroke="#3f4955" stroke-width="3" marker-end="url(#a)"/>
+  <line x1="770" y1="530" x2="770" y2="604" stroke="#6d3fd6" stroke-width="3.5" marker-end="url(#v)"/>
+  <line x1="940" y1="610" x2="940" y2="536" stroke="#2563eb" stroke-width="3.5" marker-end="url(#b)"/>
+  <rect x="1042.0" y="552" width="52" height="31" rx="7" fill="#e9f1f9"/>
+  <text x="1068" y="574" font-size="19" font-weight="700" fill="#3f4955" text-anchor="middle">SQL</text>
+  <rect x="1268.5" y="318" width="83" height="31" rx="7" fill="#e9f1f9"/>
+  <text x="1310" y="340" font-size="19" font-weight="700" fill="#9a5a08" text-anchor="middle">import</text>
+  <rect x="1078.0" y="356" width="164" height="31" rx="7" fill="#e9f1f9"/>
+  <text x="1160" y="378" font-size="19" font-weight="700" fill="#5b30c4" text-anchor="middle">dotaz + funkce</text>
+  <rect x="1357.5" y="412" width="93" height="31" rx="7" fill="#e9f1f9"/>
+  <text x="1404" y="434" font-size="19" font-weight="700" fill="#3f4955" text-anchor="middle">parcely</text>
+  <text x="784" y="576" font-size="19" fill="#5b30c4" text-anchor="start" font-weight="700">nástroje</text>
+  <text x="926" y="576" font-size="19" fill="#1d4ed8" text-anchor="end" font-weight="700">data</text>
+  <text x="40" y="832" font-size="32" fill="#10151a" text-anchor="start" font-weight="700">Tok dotazu</text>
+  <rect x="40" y="862" width="296" height="150" rx="16" fill="#ffffff" stroke="#d5dae0" stroke-width="2"/>
+  <circle cx="80" cy="902" r="22" fill="#0e9ad6"/>
+  <text x="80" y="910" font-size="22" fill="#ffffff" text-anchor="middle" font-weight="700">1</text>
+  <text x="62" y="958" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">Uživatel položí</text>
+  <text x="62" y="988" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">dotaz na webu</text>
+  <rect x="350" y="862" width="296" height="150" rx="16" fill="#ffffff" stroke="#d5dae0" stroke-width="2"/>
+  <circle cx="390" cy="902" r="22" fill="#2563eb"/>
+  <text x="390" y="910" font-size="22" fill="#ffffff" text-anchor="middle" font-weight="700">2</text>
+  <text x="372" y="958" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">API pošle dotaz</text>
+  <text x="372" y="988" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">a nástroje Gemini</text>
+  <rect x="660" y="862" width="296" height="150" rx="16" fill="#ffffff" stroke="#d5dae0" stroke-width="2"/>
+  <circle cx="700" cy="902" r="22" fill="#6d3fd6"/>
+  <text x="700" y="910" font-size="22" fill="#ffffff" text-anchor="middle" font-weight="700">3</text>
+  <text x="682" y="958" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">Gemini vybere nástroj,</text>
+  <text x="682" y="988" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">API ho zavolá na MCP</text>
+  <rect x="970" y="862" width="296" height="150" rx="16" fill="#ffffff" stroke="#d5dae0" stroke-width="2"/>
+  <circle cx="1010" cy="902" r="22" fill="#336791"/>
+  <text x="1010" y="910" font-size="22" fill="#ffffff" text-anchor="middle" font-weight="700">4</text>
+  <text x="992" y="958" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">MCP vezme data z API,</text>
+  <text x="992" y="988" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">API je čte z PostGIS</text>
+  <rect x="1280" y="862" width="296" height="150" rx="16" fill="#ffffff" stroke="#d5dae0" stroke-width="2"/>
+  <circle cx="1320" cy="902" r="22" fill="#6d3fd6"/>
+  <text x="1320" y="910" font-size="22" fill="#ffffff" text-anchor="middle" font-weight="700">5</text>
+  <text x="1302" y="958" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">Gemini složí</text>
+  <text x="1302" y="988" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">odpověď</text>
+  <rect x="1590" y="862" width="296" height="150" rx="16" fill="#ffffff" stroke="#d5dae0" stroke-width="2"/>
+  <circle cx="1630" cy="902" r="22" fill="#0a8f5b"/>
+  <text x="1630" y="910" font-size="22" fill="#ffffff" text-anchor="middle" font-weight="700">6</text>
+  <text x="1612" y="958" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">Web ukáže text</text>
+  <text x="1612" y="988" font-size="22" fill="#10151a" text-anchor="start" font-weight="600">a data v mapě</text>
+</svg>
