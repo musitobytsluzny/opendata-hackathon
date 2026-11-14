@@ -5,212 +5,208 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
 } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import { apiFetch } from '../api/client'
 import { Icon } from '../components/Icon'
-import {
-  PENDING_QUESTION_KEY,
-  SUGGESTIONS,
-  ask,
-  formatValue,
-  normalize,
-  okresName,
-  type Answer,
-  type Message,
-} from '../chat/assistant'
+import { PopoverPortal } from '../components/PopoverPortal'
+import { AnswerView } from '../chat/AnswerView'
+import { HistoryPanel } from '../chat/HistoryPanel'
+import { SettingsPanel } from '../chat/SettingsPanel'
+import { PENDING_QUESTION_KEY, SUGGESTIONS, ask, formatValue, normalize } from '../chat/assistant'
+import { sessionTitle, uid, useChatSessions, type Session } from '../hooks/useChatSessions'
+import { usePreferences } from '../hooks/usePreferences'
+import { useWorkspaceLayout } from '../hooks/useWorkspaceLayout'
 import { RegionMap, type RegionMapHandle } from '../map/LazyRegionMap'
+import { MapLegend } from '../map/MapLegend'
 import type { OkresId } from '../map/geo'
 import './MapPage.css'
 
-const EMPTY_MESSAGES: Message[] = []
-
 type Popover = 'settings' | 'history' | null
-
-const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
-
-type Session = {
-  id: string
-  messages: Message[]
-  activeId: string | null
-  createdAt: number
-  updatedAt: number
-}
-
-const newSession = (): Session => {
-  const now = Date.now()
-  return { id: uid(), messages: [], activeId: null, createdAt: now, updatedAt: now }
-}
-
-const storageKey = (user: string | undefined) => `chat_sessions:${user ?? 'anon'}`
-
-function loadSessions(key: string): Session[] {
-  try {
-    const raw = localStorage.getItem(key)
-    const parsed = raw ? (JSON.parse(raw) as Session[]) : []
-    return Array.isArray(parsed) ? parsed.filter((s) => s && Array.isArray(s.messages)) : []
-  } catch {
-    return []
-  }
-}
-
-function saveSessions(key: string, sessions: Session[]) {
-  try {
-    localStorage.setItem(
-      key,
-      JSON.stringify(
-        sessions
-          .filter((s) => s.messages.length > 0)
-          .slice(0, 30)
-          .map((s) => ({ ...s, messages: s.messages.slice(-200) })),
-      ),
-    )
-  } catch {
-    /* Storage may be disabled or full. */
-  }
-}
-
-function sessionTitle(s: Session): string {
-  const first = s.messages.find((m) => m.role === 'user')
-  return first && first.role === 'user' ? first.text : 'Nová konverzace'
-}
-
-const timeFormat = new Intl.RelativeTimeFormat('cs', { numeric: 'auto' })
-function relativeTime(ts: number): string {
-  const diff = (ts - Date.now()) / 1000
-  const abs = Math.abs(diff)
-  if (abs < 60) return 'právě teď'
-  if (abs < 3600) return timeFormat.format(Math.round(diff / 60), 'minute')
-  if (abs < 86400) return timeFormat.format(Math.round(diff / 3600), 'hour')
-  return timeFormat.format(Math.round(diff / 86400), 'day')
-}
 
 export function MapPage() {
   const { user, logout } = useAuth()
+  const chat = useChatSessions(user?.id, user?.username)
+  const { sessions, current, currentId, setCurrentId, update, create, remove, restore } = chat
+  const { preferences, update: updatePreference, reset: resetPreferences } = usePreferences()
+  const layout = useWorkspaceLayout(preferences.panelWidth, (width) =>
+    updatePreference('panelWidth', width),
+  )
+  const { viewport, mobile, panelWidth, maxWidth, sheetHeight, horizontal, vertical } = layout
+  const collapsed = preferences.panelCollapsed
+  const dragging = horizontal.dragging || vertical.dragging
   const mapRef = useRef<RegionMapHandle>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const key = storageKey(user?.id)
-  const [initial] = useState(() => {
-    const stored = loadSessions(key)
-    const legacy = stored.length ? stored : loadSessions(storageKey(user?.username))
-    const sessions = legacy.length ? legacy.slice(0, 30) : [newSession()]
-    return { sessions, id: (sessions.find((s) => s.messages.length === 0) ?? sessions[0]).id }
-  })
-  const [sessions, setSessions] = useState<Session[]>(initial.sessions)
-  const [currentId, setCurrentId] = useState(initial.id)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const requestRef = useRef<AbortController | null>(null)
-  useEffect(() => () => requestRef.current?.abort(), [])
+  const currentRef = useRef(currentId)
+  const stickToBottom = useRef(true)
+  const scrollPositions = useRef(new Map<string, number>())
+  const previouslyCollapsed = useRef(collapsed)
+  const lastConversation = useRef(currentId)
+  const popoverTrigger = useRef<HTMLElement | null>(null)
   const [loadingIn, setLoadingIn] = useState<string | null>(null)
-
-  const sessionsRef = useRef(sessions)
-  useLayoutEffect(() => {
-    sessionsRef.current = sessions
-  }, [sessions])
-  useEffect(() => {
-    const timer = window.setTimeout(() => saveSessions(key, sessions), 300)
-    return () => window.clearTimeout(timer)
-  }, [sessions, key])
-  useEffect(() => {
-    const persist = () => saveSessions(key, sessionsRef.current)
-    window.addEventListener('pagehide', persist)
-    return () => {
-      window.removeEventListener('pagehide', persist)
-      persist()
-    }
-  }, [key])
-
-  const current = sessions.find((s) => s.id === currentId) ?? null
-  const messages = current?.messages ?? EMPTY_MESSAGES
-  const activeId = current?.activeId ?? null
-  const loading = loadingIn === currentId
-  const history = useMemo(
-    () => sessions.filter((s) => s.messages.length > 0).sort((a, b) => b.updatedAt - a.updatedAt),
-    [sessions],
-  )
-
-  function updateSession(id: string, fn: (s: Session) => Session) {
-    setSessions((list) => list.map((s) => (s.id === id ? fn(s) : s)))
-  }
-
-  function setActiveId(id: string | null) {
-    updateSession(currentId, (s) => ({ ...s, activeId: id }))
-  }
-  const [draft, setDraft] = useState('')
+  const [popover, setPopover] = useState<Popover>(null)
+  const [editing, setEditing] = useState<{ id: string; previousDraft: string } | null>(null)
   const [hovered, setHovered] = useState<OkresId | null>(null)
   const [focused, setFocused] = useState<OkresId | null>(null)
-  const [wide, setWide] = useState(false)
-  const [fading, setFading] = useState(false)
-  const fadeTimers = useRef<number[]>([])
+  const [awayFromBottom, setAwayFromBottom] = useState(false)
+  const [unread, setUnread] = useState(false)
+  const [deleted, setDeleted] = useState<Session | null>(null)
+  const [dataStatus, setDataStatus] = useState('Ověřuji data…')
+  const [fullScreen, setFullScreen] = useState(Boolean(document.fullscreenElement))
+  const messages = current.messages
+  const draft = current.draft ?? ''
+  const loading = loadingIn === currentId
+  const motion =
+    preferences.reducedMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const behavior = motion ? 'instant' : 'smooth'
+  const denseMap = mobile && !collapsed && sheetHeight > viewport.height * 0.73
+  const expanded = !mobile && panelWidth >= 560
+  const maximized = panelWidth >= maxWidth - 2
+  const progress = Math.max(0, Math.min(1, (panelWidth - 330) / Math.max(1, maxWidth - 330)))
+  const compactWidth = Math.min(416, viewport.width - panelWidth - 48)
+  const rootStyle = {
+    '--panel-width': `${panelWidth}px`,
+    '--panel-progress': progress,
+    '--panel-top': `${16 * (1 - progress)}px`,
+    '--panel-bottom': `${80 * (1 - progress)}px`,
+    '--composer-left': `${((1 - progress) * (panelWidth + viewport.width)) / 2 + (progress * panelWidth) / 2}px`,
+    '--composer-width': `${compactWidth * (1 - progress) + Math.min(760, panelWidth - 48) * progress}px`,
+    '--sheet-height': `${sheetHeight}px`,
+    '--viewport-height': `${viewport.height}px`,
+    '--viewport-top': `${viewport.top}px`,
+  } as CSSProperties
 
-  function toggleWide() {
-    fadeTimers.current.forEach((t) => window.clearTimeout(t))
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setWide((w) => !w)
-      return
-    }
-    setFading(true)
-    fadeTimers.current = [
-      window.setTimeout(() => setWide((w) => !w), 180),
-      window.setTimeout(() => setFading(false), 180 + 460),
-    ]
-  }
-
-  useEffect(() => () => fadeTimers.current.forEach((t) => window.clearTimeout(t)), [])
-  const [popover, setPopover] = useState<Popover>(null)
-  const [dimOutside, setDimOutside] = useState(true)
-  const [isNarrow, setIsNarrow] = useState(() => window.matchMedia('(max-width: 720px)').matches)
-  const [viewport, setViewport] = useState(() => ({
-    width: window.innerWidth,
-    height: window.innerHeight,
-  }))
-
+  useLayoutEffect(() => {
+    currentRef.current = currentId
+  }, [currentId])
+  useEffect(() => () => requestRef.current?.abort(), [])
   useEffect(() => {
-    let frame = 0
-    const on = () => {
-      if (frame) return
-      frame = requestAnimationFrame(() => {
-        frame = 0
-        setViewport({ width: window.innerWidth, height: window.innerHeight })
-        setIsNarrow(window.matchMedia('(max-width: 720px)').matches)
+    const request = new AbortController()
+    apiFetch<{ datasets: { row_count: number; data_kind: string }[] }>('/data/catalog', {
+      signal: request.signal,
+    })
+      .then(({ datasets }) => {
+        if (request.signal.aborted) return
+        const loaded = datasets.filter(
+          (dataset) => dataset.row_count > 0 && dataset.data_kind !== 'reference',
+        )
+        setDataStatus(
+          !loaded.length
+            ? 'Data zatím nejsou načtená'
+            : loaded.some((dataset) => dataset.data_kind === 'demo')
+              ? 'Ukázková data'
+              : 'Data jsou dostupná',
+        )
       })
-    }
-    window.addEventListener('resize', on)
-    return () => {
-      window.removeEventListener('resize', on)
-      cancelAnimationFrame(frame)
-    }
+      .catch(() => {
+        if (!request.signal.aborted) setDataStatus('Dostupnost dat neověřena')
+      })
+    return () => request.abort()
   }, [])
+  useEffect(() => {
+    if (!deleted) return
+    const timer = window.setTimeout(() => setDeleted(null), 8000)
+    return () => window.clearTimeout(timer)
+  }, [deleted])
+  useEffect(() => {
+    const onChange = () => setFullScreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+  useLayoutEffect(() => {
+    const input = inputRef.current
+    if (!input) return
+    input.style.height = 'auto'
+    input.style.height = `${Math.min(144, input.scrollHeight)}px`
+  }, [draft, collapsed, panelWidth, mobile])
 
-  const expanded = wide && !isNarrow
+  function setDraft(text: string) {
+    update(currentId, (session) => ({ ...session, draft: text }))
+  }
+  function toggleWide() {
+    updatePreference('panelWidth', maximized ? 330 : maxWidth)
+  }
+  function openComposer() {
+    updatePreference('panelCollapsed', false)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+  function closePopover() {
+    setPopover(null)
+    popoverTrigger.current?.focus()
+  }
+  function togglePopover(next: Exclude<Popover, null>) {
+    popoverTrigger.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setPopover((previous) => (previous === next ? null : next))
+  }
+  useEffect(() => {
+    if (!popover || collapsed) return
+    const timer = window.setTimeout(() => {
+      document
+        .querySelector<HTMLElement>(
+          popover === 'history' ? '#popover-history input' : '#popover-settings input',
+        )
+        ?.focus()
+    }, 0)
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Element && !event.target.closest('.panel__head, .popover'))
+        setPopover(null)
+    }
+    window.addEventListener('pointerdown', dismiss)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('pointerdown', dismiss)
+    }
+  }, [popover, collapsed])
 
   const series = useMemo(
     () =>
-      messages.flatMap((m) =>
-        m.role === 'assistant' && m.answer.rows
-          ? [{ id: m.id, answer: m.answer, values: normalize(m.answer.rows) }]
+      messages.flatMap((message) =>
+        message.role === 'assistant' && message.answer.rows?.length
+          ? [{ id: message.id, answer: message.answer, values: normalize(message.answer.rows) }]
           : [],
       ),
     [messages],
   )
-
-  const active = series.find((s) => s.id === activeId) ?? series[series.length - 1] ?? null
+  const active = series.find((item) => item.id === current.activeId) ?? series.at(-1) ?? null
   const latest = active?.answer ?? null
-
-  function showAnswer(id: string) {
-    setActiveId(id)
-    setHovered(null)
-    showKraj()
-    document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }
+  const labels = useMemo(
+    () =>
+      latest?.rows
+        ? Object.fromEntries(
+            latest.rows.map((row) => [
+              row.okres,
+              formatValue(row.value, latest.unit, latest.signed),
+            ]),
+          )
+        : null,
+    [latest],
+  )
+  const padding = useMemo(
+    () =>
+      mobile
+        ? { top: 56, right: 56, bottom: collapsed ? 88 : Math.round(sheetHeight) + 24, left: 24 }
+        : { top: 64, right: 88, bottom: 80, left: collapsed ? 48 : panelWidth + 48 },
+    [mobile, collapsed, panelWidth, sheetHeight],
+  )
 
   function showKraj() {
     setFocused(null)
     mapRef.current?.fitKraj()
   }
-
+  function showAnswer(id: string) {
+    update(currentId, (session) => ({ ...session, activeId: id }))
+    setHovered(null)
+    showKraj()
+    document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior, block: 'nearest' })
+  }
   function focusOkres(answerId: string, id: OkresId) {
-    if (active?.id !== answerId) setActiveId(answerId)
+    if (active?.id !== answerId)
+      update(currentId, (session) => ({ ...session, activeId: answerId }))
     if (focused === id) {
       showKraj()
       return
@@ -218,84 +214,117 @@ export function MapPage() {
     setFocused(id)
     mapRef.current?.focusOkres(id)
   }
-
-  const values = active?.values ?? null
-  const labels = useMemo(
-    () =>
-      latest?.rows
-        ? Object.fromEntries(
-            latest.rows.map((r) => [r.okres, formatValue(r.value, latest.unit, latest.signed)]),
-          )
-        : null,
-    [latest],
-  )
-
-  const padding = useMemo(
-    () =>
-      isNarrow
-        ? { top: 16, right: 64, bottom: Math.round(viewport.height * 0.45) + 80, left: 16 }
-        : expanded
-          ? { top: 48, right: 72, bottom: 48, left: Math.round(viewport.width * 0.75) + 24 }
-          : { top: 32, right: 88, bottom: 96, left: 370 },
-    [isNarrow, expanded, viewport.width, viewport.height],
-  )
-
-  useEffect(() => {
-    if (messages.length === 0 && !loading) return
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, loading])
-
-  useEffect(() => {
-    if (!popover) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setPopover(null)
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [popover])
-
-  const currentRef = useRef(currentId)
+  function scrollToLatest(smooth = true) {
+    stickToBottom.current = true
+    setUnread(false)
+    listRef.current?.scrollTo({
+      top: listRef.current.scrollHeight,
+      behavior: smooth ? behavior : 'instant',
+    })
+  }
+  const syncScroll = useEffectEvent(() => {
+    const reopening = previouslyCollapsed.current && !collapsed
+    previouslyCollapsed.current = collapsed
+    const switched = lastConversation.current !== currentId
+    if (switched) {
+      lastConversation.current = currentId
+      stickToBottom.current = true
+      setUnread(false)
+      setAwayFromBottom(false)
+    }
+    if (collapsed) return
+    if (reopening && !stickToBottom.current && listRef.current)
+      listRef.current.scrollTop = scrollPositions.current.get(currentId) ?? 0
+    if (preferences.autoScroll && stickToBottom.current) scrollToLatest(false)
+    else if (messages.length) setUnread(true)
+  })
   useLayoutEffect(() => {
-    currentRef.current = currentId
-  }, [currentId])
+    const frame = requestAnimationFrame(() => syncScroll())
+    return () => cancelAnimationFrame(frame)
+  }, [messages, loading, currentId, collapsed, preferences.autoScroll])
 
+  function cancelEdit() {
+    if (editing) setDraft(editing.previousDraft)
+    setEditing(null)
+  }
+  function editQuestion(id: string) {
+    const message = messages.find((item) => item.id === id)
+    if (message?.role !== 'user' || loadingIn) return
+    setEditing({ id, previousDraft: editing?.previousDraft ?? draft })
+    setDraft(message.text)
+    openComposer()
+  }
   async function send(question: string) {
     const q = question.trim()
-    if (!q || requestRef.current) return
+    if (!q || q.length > 4000 || requestRef.current) return
     const request = new AbortController()
     requestRef.current = request
-    const sid = currentId
-    setDraft('')
-    setPopover(null)
-    updateSession(sid, (s) => ({
-      ...s,
-      messages: [...s.messages, { id: uid(), role: 'user', text: q }],
+    let sid = currentId
+    let context = messages
+    if (editing) {
+      const index = messages.findIndex((message) => message.id === editing.id)
+      if (index >= 0) {
+        context = messages.slice(0, index)
+        update(currentId, (session) => ({ ...session, draft: editing.previousDraft }))
+        sid = create(context)
+        update(sid, (session) => ({ ...session, title: q.slice(0, 100) }))
+      }
+      setEditing(null)
+    }
+    update(sid, (session) => ({
+      ...session,
+      draft: '',
+      messages: [...session.messages, { id: uid(), role: 'user', text: q }],
       updatedAt: Date.now(),
     }))
+    setPopover(null)
+    stickToBottom.current = true
     setLoadingIn(sid)
     try {
-      const answer = await ask(q, messages, request.signal)
+      const answer = await ask(q, context, request.signal)
       if (request.signal.aborted) return
       const id = uid()
-      updateSession(sid, (s) => ({
-        ...s,
-        messages: [...s.messages, { id, role: 'assistant', answer }],
-        activeId: answer.rows ? id : s.activeId,
+      update(sid, (session) => ({
+        ...session,
+        messages: [...session.messages, { id, role: 'assistant', answer }],
+        activeId: answer.rows?.length ? id : session.activeId,
         updatedAt: Date.now(),
       }))
-      if (answer.rows && currentRef.current === sid) showKraj()
-    } catch (err) {
+      if (answer.rows?.length && preferences.autoFocus && currentRef.current === sid) showKraj()
+    } catch (error) {
       if (request.signal.aborted) return
-      const text = err instanceof Error ? err.message : 'Odpověď se nepodařilo načíst.'
-      updateSession(sid, (s) => ({
-        ...s,
-        messages: [...s.messages, { id: uid(), role: 'error', text, retry: q }],
+      const text = error instanceof Error ? error.message : 'Odpověď se nepodařilo načíst.'
+      update(sid, (session) => ({
+        ...session,
+        messages: [...session.messages, { id: uid(), role: 'error', text, retry: q }],
         updatedAt: Date.now(),
       }))
     } finally {
-      requestRef.current = null
-      if (!request.signal.aborted) setLoadingIn(null)
+      if (requestRef.current === request) {
+        requestRef.current = null
+        setLoadingIn(null)
+      }
     }
   }
-
+  function stopWaiting(record = true) {
+    const sid = loadingIn
+    requestRef.current?.abort()
+    requestRef.current = null
+    setLoadingIn(null)
+    if (sid && record)
+      update(sid, (session) => ({
+        ...session,
+        messages: [
+          ...session.messages,
+          {
+            id: uid(),
+            role: 'error',
+            text: 'Čekání na odpověď bylo zastaveno.',
+            retry: session.messages.findLast((message) => message.role === 'user')?.text ?? '',
+          },
+        ],
+      }))
+  }
   const sendPending = useEffectEvent((question: string) => {
     void send(question)
   })
@@ -308,300 +337,504 @@ export function MapPage() {
         sessionStorage.removeItem(PENDING_QUESTION_KEY)
         if (pending) sendPending(pending)
       } catch {
-        /* Session storage may be disabled. */
+        /* Session storage is optional. */
       }
     })
     return () => {
       active = false
     }
   }, [])
-
-  function onSubmit(e: FormEvent) {
-    e.preventDefault()
-    send(draft)
-  }
+  const shortcut = useEffectEvent((event: KeyboardEvent) => {
+    const input =
+      event.target instanceof Element &&
+      event.target.closest('input, textarea, select, [contenteditable="true"]')
+    if (event.key === '/' && !input && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      event.preventDefault()
+      openComposer()
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault()
+      updatePreference('panelCollapsed', false)
+      setPopover('history')
+    }
+    if (event.key === 'Escape') {
+      if (popover) closePopover()
+      else if (editing) cancelEdit()
+      else {
+        updatePreference('panelCollapsed', true)
+        inputRef.current?.blur()
+      }
+    }
+  })
+  useEffect(() => {
+    window.addEventListener('keydown', shortcut)
+    return () => window.removeEventListener('keydown', shortcut)
+  }, [])
 
   function resetView() {
     setPopover(null)
     setHovered(null)
     showKraj()
   }
-
   function newConversation() {
-    const empty = sessions.find((s) => s.messages.length === 0)
-    if (empty) {
-      setCurrentId(empty.id)
-    } else {
-      const s = newSession()
-      setSessions((list) => [s, ...list])
-      setCurrentId(s.id)
-    }
+    cancelEdit()
+    const empty = sessions.find((session) => !session.messages.length && !session.draft?.trim())
+    if (empty) setCurrentId(empty.id)
+    else create()
     resetView()
-    inputRef.current?.focus()
+    openComposer()
   }
-
   function openSession(id: string) {
+    cancelEdit()
     setCurrentId(id)
-    setSessions((list) => list.filter((s) => s.id === id || s.messages.length > 0))
     resetView()
   }
-
   function deleteSession(id: string) {
-    const remaining = sessions.filter((session) => session.id !== id)
-    const next = remaining.length ? remaining : [newSession()]
-    setSessions(next)
-    if (id === currentId) {
-      setCurrentId(next[0].id)
+    const session = sessions.find((item) => item.id === id)
+    if (!session) return
+    if (loadingIn === id) stopWaiting(false)
+    if (currentId === id) {
+      setEditing(null)
       resetView()
     }
+    setDeleted(session)
+    remove(id)
+  }
+  function exportConversation() {
+    const text = [
+      `# ${sessionTitle(current)}`,
+      '',
+      'Kartogram · export konverzace',
+      '',
+      ...messages.flatMap((message) => [
+        `## ${message.role === 'user' ? 'Vy' : message.role === 'assistant' ? 'KartogramMCP' : 'Chyba'}`,
+        '',
+        message.role === 'assistant'
+          ? message.answer.text +
+            (message.answer.source
+              ? `\n\nZdroj: ${message.answer.source.publisher} · ${message.answer.source.period}`
+              : '') +
+            (message.answer.sample ? '\n\nUkázková data.' : '')
+          : message.text,
+        '',
+      ]),
+    ].join('\n')
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/markdown;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'kartogram-konverzace.md'
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    void send(draft)
   }
 
   return (
-    <div className={expanded ? 'app app--expanded' : 'app'}>
+    <div
+      className={[
+        'app',
+        collapsed ? 'app--collapsed' : '',
+        expanded ? 'app--expanded' : '',
+        dragging ? 'app--resizing' : '',
+        motion ? 'app--reduced-motion' : '',
+        preferences.textSize === 'large' ? 'app--large-text' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={rootStyle}
+    >
       <RegionMap
         ref={mapRef}
-        values={values}
-        labels={labels}
+        values={active?.values ?? null}
+        labels={preferences.showLabels ? labels : null}
         hovered={hovered}
         onHover={setHovered}
         padding={padding}
         focused={focused}
-        viewKey={isNarrow ? 'mobile' : expanded ? 'expanded' : 'compact'}
+        viewKey={mobile ? 'mobile' : 'desktop'}
+        className={expanded ? 'region-map--compact' : undefined}
         label={
           latest?.metric
             ? `Mapa Plzeňského kraje, okresy obarvené podle: ${latest.metric}`
             : 'Mapa Plzeňského kraje'
         }
-        maskOpacity={dimOutside ? 0.68 : 0}
-        className={expanded ? 'region-map--compact' : undefined}
+        maskOpacity={preferences.dimOutside ? preferences.dimOpacity : 0}
+        showTowns={preferences.showTowns}
+        basemap={preferences.basemap}
+        palette={preferences.palette}
+        reducedMotion={motion || dragging}
+        onSelect={(id) => {
+          if (focused === id) showKraj()
+          else {
+            setFocused(id)
+            mapRef.current?.focusOkres(id)
+          }
+        }}
       />
       <div className="app__vignette" aria-hidden="true" />
 
-      <aside
-        className={['panel', expanded ? 'panel--wide' : '', fading ? 'is-fading' : '']
-          .filter(Boolean)
-          .join(' ')}
-        aria-label="Konverzace"
-      >
-        <header className="panel__head">
+      {collapsed ? (
+        <div className="chat-launcher">
+          <button
+            type="button"
+            className="chat-launcher__open"
+            onClick={openComposer}
+            aria-label="Otevřít konverzaci"
+          >
+            <span>
+              <strong>Kartogram</strong>
+              <small>{loadingIn ? 'KartogramMCP odpovídá…' : 'Otevřít konverzaci'}</small>
+            </span>
+            <Icon name={mobile ? 'chevronUp' : 'expand'} size={18} />
+          </button>
           <button
             type="button"
             className="icon-btn"
-            aria-label="Nastavení"
-            aria-expanded={popover === 'settings'}
-            aria-haspopup="dialog"
-            aria-controls={popover === 'settings' ? 'popover-settings' : undefined}
-            onClick={() => setPopover(popover === 'settings' ? null : 'settings')}
+            aria-label="Nová konverzace"
+            title="Nová konverzace"
+            onClick={newConversation}
           >
-            <Icon name="settings" />
+            <Icon name="plus" />
           </button>
-          <span className="panel__title">Ptej se kraje</span>
-          <div className="panel__tools" role="toolbar" aria-label="Konverzace">
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label="Nová konverzace"
-              title="Nová konverzace"
-              disabled={messages.length === 0}
-              onClick={newConversation}
+        </div>
+      ) : (
+        <aside className={`panel${expanded ? ' panel--wide' : ''}`} aria-label="Konverzace">
+          {mobile && (
+            <div
+              className="panel__sheet-handle"
+              role="separator"
+              aria-label="Výška konverzace"
+              aria-orientation="horizontal"
+              aria-valuemin={Math.round(layout.minHeight)}
+              aria-valuemax={Math.round(layout.maxHeight)}
+              aria-valuenow={Math.round(sheetHeight)}
+              tabIndex={0}
+              {...vertical.handle}
+              onDoubleClick={layout.toggleSheet}
             >
-              <Icon name="plus" />
-            </button>
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label="Historie konverzací"
-              title="Historie konverzací"
-              aria-haspopup="dialog"
-              aria-expanded={popover === 'history'}
-              aria-controls={popover === 'history' ? 'popover-history' : undefined}
-              onClick={() => setPopover(popover === 'history' ? null : 'history')}
-            >
-              <Icon name="history" />
-            </button>
-            {!isNarrow && (
+              <span />
+            </div>
+          )}
+          <header className="panel__head">
+            <div className="panel__brand">
+              <span className="panel__title">
+                Kartogram<span className="panel__status">{dataStatus}</span>
+              </span>
+            </div>
+            <div className="panel__tools" role="toolbar" aria-label="Konverzace">
               <button
                 type="button"
                 className="icon-btn"
-                aria-label={wide ? 'Zúžit konverzaci' : 'Rozšířit konverzaci'}
-                title={wide ? 'Zúžit konverzaci' : 'Rozšířit konverzaci'}
-                aria-pressed={wide}
-                onClick={toggleWide}
+                aria-label="Nová konverzace"
+                title="Nová konverzace"
+                onClick={newConversation}
               >
-                <Icon name={wide ? 'collapse' : 'expand'} />
+                <Icon name="plus" size={18} />
               </button>
-            )}
-          </div>
-
-          {popover === 'settings' && (
-            <div
-              id="popover-settings"
-              className="popover popover--left"
-              role="dialog"
-              aria-label="Nastavení"
-            >
-              <p className="popover__who">
-                Přihlášen jako <strong>{user?.username}</strong>
-              </p>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={dimOutside}
-                  onChange={(e) => setDimOutside(e.target.checked)}
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Historie konverzací"
+                title="Historie · ⌘/Ctrl K"
+                aria-expanded={popover === 'history'}
+                aria-haspopup="dialog"
+                onClick={() => togglePopover('history')}
+              >
+                <Icon name="history" size={18} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Nastavení"
+                title="Nastavení"
+                aria-expanded={popover === 'settings'}
+                aria-haspopup="dialog"
+                onClick={() => togglePopover('settings')}
+              >
+                <Icon name="settings" size={18} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label={
+                  mobile
+                    ? 'Změnit výšku konverzace'
+                    : maximized
+                      ? 'Zúžit konverzaci'
+                      : 'Rozšířit konverzaci'
+                }
+                title={mobile ? 'Změnit výšku panelu' : 'Rozšířit / zúžit'}
+                aria-pressed={mobile ? sheetHeight > viewport.height * 0.7 : maximized}
+                onClick={mobile ? layout.toggleSheet : toggleWide}
+              >
+                <Icon name={maximized ? 'collapse' : 'expand'} size={18} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Sbalit konverzaci"
+                title="Sbalit · Esc"
+                onClick={() => {
+                  setPopover(null)
+                  updatePreference('panelCollapsed', true)
+                }}
+              >
+                <Icon name={mobile ? 'chevronDown' : 'minus'} size={18} />
+              </button>
+            </div>
+            {popover === 'settings' && (
+              <PopoverPortal>
+                <SettingsPanel
+                  preferences={preferences}
+                  update={updatePreference}
+                  reset={resetPreferences}
+                  username={user?.username}
+                  logout={logout}
+                  hasHistory={sessions.some(
+                    (session) => session.messages.length > 0 || session.draft?.trim(),
+                  )}
+                  onClearHistory={() => {
+                    stopWaiting(false)
+                    setEditing(null)
+                    setDeleted(null)
+                    chat.clear()
+                    resetView()
+                  }}
                 />
-                <span className="switch__track" aria-hidden="true" />
-                Ztmavit okolí kraje
-              </label>
-              <button type="button" className="popover__item" onClick={logout}>
-                <Icon name="logout" size={18} />
-                Odhlásit se
-              </button>
-            </div>
-          )}
-
-          {popover === 'history' && (
-            <div
-              id="popover-history"
-              className="popover popover--right"
-              role="dialog"
-              aria-label="Historie konverzací"
-            >
-              <p className="popover__heading" id="history-heading">
-                Konverzace
-              </p>
-              {history.length === 0 ? (
-                <p className="popover__empty">Zatím tu nejsou žádné konverzace.</p>
-              ) : (
-                <ul className="popover__list sessions" aria-labelledby="history-heading">
-                  {history.map((s) => {
-                    const count = s.messages.filter((m) => m.role === 'user').length
-                    const isCurrent = s.id === currentId
-                    return (
-                      <li key={s.id} className={isCurrent ? 'session is-current' : 'session'}>
-                        <button
-                          type="button"
-                          className="session__open"
-                          aria-current={isCurrent ? 'true' : undefined}
-                          onClick={() => openSession(s.id)}
-                        >
-                          <span className="session__title">{sessionTitle(s)}</span>
-                          <span className="session__meta">
-                            {relativeTime(s.updatedAt)} · {count}{' '}
-                            {count === 1 ? 'dotaz' : count < 5 ? 'dotazy' : 'dotazů'}
-                            {loadingIn === s.id ? ' · odpovídám…' : ''}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          className="session__delete icon-btn"
-                          aria-label={`Smazat konverzaci: ${sessionTitle(s)}`}
-                          title="Smazat konverzaci"
-                          onClick={() => deleteSession(s.id)}
-                        >
-                          <Icon name="close" size={16} />
-                        </button>
-                      </li>
-                    )
-                  })}
+              </PopoverPortal>
+            )}
+            {popover === 'history' && (
+              <PopoverPortal>
+                <HistoryPanel
+                  sessions={sessions}
+                  currentId={currentId}
+                  loadingIn={loadingIn}
+                  onOpen={openSession}
+                  onDelete={deleteSession}
+                  onRename={(id, title) => update(id, (session) => ({ ...session, title }))}
+                  onPin={(id) => update(id, (session) => ({ ...session, pinned: !session.pinned }))}
+                  onExport={exportConversation}
+                />
+              </PopoverPortal>
+            )}
+          </header>
+          <div
+            className="panel__body"
+            ref={listRef}
+            role="log"
+            aria-label="Zprávy konverzace"
+            aria-live="polite"
+            onScroll={() => {
+              const list = listRef.current
+              if (!list) return
+              const away = list.scrollHeight - list.scrollTop - list.clientHeight > 64
+              scrollPositions.current.set(currentId, list.scrollTop)
+              stickToBottom.current = !away
+              setAwayFromBottom(away)
+              if (!away) setUnread(false)
+            }}
+          >
+            {!messages.length && !loading ? (
+              <div className="empty">
+                <h1 className="empty__title">Na co se chcete zeptat?</h1>
+                <p className="empty__text">
+                  Ptejte se běžnou češtinou. Odpověď najdu v otevřených datech a ukážu ji na mapě
+                  kraje.
+                </p>
+                <ul className="empty__list">
+                  {SUGGESTIONS.map((question) => (
+                    <li key={question}>
+                      <button
+                        type="button"
+                        className="suggestion"
+                        disabled={Boolean(loadingIn)}
+                        onClick={() => void send(question)}
+                      >
+                        <span>{question}</span>
+                        <Icon name="arrow" size={16} />
+                      </button>
+                    </li>
+                  ))}
                 </ul>
-              )}
-            </div>
-          )}
-        </header>
-
-        <div className="panel__body" ref={listRef} aria-live="polite">
-          {messages.length === 0 && !loading ? (
-            <div className="empty">
-              <h1 className="empty__title">Na co se chcete zeptat?</h1>
-              <p className="empty__text">
-                Ptejte se běžnou češtinou. Odpověď najdu v otevřených datech a ukážu ji na mapě
-                kraje.
-              </p>
-              <ul className="empty__list">
-                {SUGGESTIONS.map((s) => (
-                  <li key={s}>
-                    <button type="button" className="suggestion" onClick={() => send(s)}>
-                      <span>{s}</span>
-                      <Icon name="arrow" size={16} />
-                    </button>
+              </div>
+            ) : (
+              <ol className="thread">
+                {messages.map((message) => (
+                  <li
+                    key={message.id}
+                    id={`msg-${message.id}`}
+                    className={`msg msg--${message.role}${active?.id === message.id && series.length > 1 ? ' msg--active' : ''}`}
+                  >
+                    {message.role === 'user' && (
+                      <div className="user-message">
+                        <div className="user-message__label">
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label={`Upravit dotaz: ${message.text}`}
+                            title="Upravit a odeslat znovu"
+                            disabled={Boolean(loadingIn)}
+                            onClick={() => editQuestion(message.id)}
+                          >
+                            <Icon name="edit" size={14} />
+                          </button>
+                        </div>
+                        <p>{message.text}</p>
+                      </div>
+                    )}
+                    {message.role === 'assistant' && (
+                      <AnswerView
+                        answer={message.answer}
+                        onAsk={loadingIn ? undefined : (question) => void send(question)}
+                        hovered={active?.id === message.id ? hovered : null}
+                        onHover={active?.id === message.id ? setHovered : () => {}}
+                        focused={active?.id === message.id ? focused : null}
+                        onFocusOkres={(id) => focusOkres(message.id, id)}
+                        onShow={
+                          message.answer.rows?.length && active?.id !== message.id
+                            ? () => showAnswer(message.id)
+                            : undefined
+                        }
+                      />
+                    )}
+                    {message.role === 'error' && (
+                      <div className="msg__error" role="alert">
+                        <p>{message.text}</p>
+                        <button
+                          type="button"
+                          className="text-btn"
+                          disabled={Boolean(loadingIn)}
+                          onClick={() => void send(message.retry)}
+                        >
+                          Zkusit znovu
+                        </button>
+                      </div>
+                    )}
                   </li>
                 ))}
-              </ul>
-            </div>
-          ) : (
-            <ol className="thread" aria-label="Zprávy konverzace">
-              {messages.map((m) => (
-                <li
-                  key={m.id}
-                  id={`msg-${m.id}`}
-                  className={
-                    active?.id === m.id && series.length > 1
-                      ? `msg msg--${m.role} msg--active`
-                      : `msg msg--${m.role}`
-                  }
-                >
-                  {m.role === 'user' && (
-                    <p>
-                      <span className="sr-only">Váš dotaz: </span>
-                      {m.text}
-                    </p>
-                  )}
-                  {m.role === 'assistant' && (
-                    <AnswerView
-                      answer={m.answer}
-                      hovered={active?.id === m.id ? hovered : null}
-                      onHover={active?.id === m.id ? setHovered : () => {}}
-                      focused={active?.id === m.id ? focused : null}
-                      onFocusOkres={(id) => focusOkres(m.id, id)}
-                      onShow={
-                        m.answer.rows && active?.id !== m.id ? () => showAnswer(m.id) : undefined
-                      }
-                    />
-                  )}
-                  {m.role === 'error' && (
-                    <div className="msg__error" role="alert">
-                      <p>{m.text}</p>
-                      <button type="button" className="text-btn" onClick={() => send(m.retry)}>
-                        Zkusit znovu
-                      </button>
-                    </div>
-                  )}
-                </li>
-              ))}
-              {loading && (
-                <li className="msg msg--assistant" role="status">
-                  <p className="thinking">Hledám v otevřených datech</p>
-                </li>
-              )}
-            </ol>
+                {loading && (
+                  <li className="msg msg--assistant" role="status">
+                    <p className="thinking">KartogramMCP hledá v datech</p>
+                  </li>
+                )}
+              </ol>
+            )}
+          </div>
+          {(awayFromBottom || unread) && (
+            <button type="button" className="jump-latest" onClick={() => scrollToLatest()}>
+              <Icon name="chevronDown" size={14} />
+              {unread ? 'Nové zprávy' : 'Nejnovější zprávy'}
+            </button>
           )}
+          {!mobile && (
+            <div
+              className="panel__resize"
+              role="separator"
+              aria-label="Šířka konverzace"
+              aria-orientation="vertical"
+              aria-valuemin={330}
+              aria-valuemax={maxWidth}
+              aria-valuenow={Math.round(panelWidth)}
+              tabIndex={0}
+              {...horizontal.handle}
+              title="Táhněte pro změnu šířky · dvojklik rozšíří"
+              onDoubleClick={toggleWide}
+            >
+              <span />
+            </div>
+          )}
+        </aside>
+      )}
+
+      {!collapsed && (
+        <div className="composer-dock">
+          {editing && (
+            <div className="edit-banner">
+              <span>
+                <strong>Upravujete dřívější dotaz</strong>Původní konverzace zůstane v historii.
+              </span>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Zrušit úpravu dotazu"
+                onClick={cancelEdit}
+              >
+                <Icon name="close" size={16} />
+              </button>
+            </div>
+          )}
+          {loadingIn && !loading && (
+            <p className="composer-note">Odpověď se dokončuje v jiné konverzaci.</p>
+          )}
+          <form className="ask" onSubmit={onSubmit}>
+            <label htmlFor="ask-input" className="sr-only">
+              Dotaz na data Plzeňského kraje
+            </label>
+            <textarea
+              id="ask-input"
+              ref={inputRef}
+              className="ask__input"
+              rows={1}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder={editing ? 'Upravte svůj dotaz…' : 'Zeptejte se KartogramMCP…'}
+              autoComplete="off"
+              maxLength={4000}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault()
+                  void send(draft)
+                }
+              }}
+            />
+            {loadingIn ? (
+              <button
+                type="button"
+                className="ask__send ask__stop"
+                aria-label="Zastavit čekání na odpověď"
+                title="Zastavit čekání"
+                onClick={() => stopWaiting()}
+              >
+                <span />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="ask__send"
+                disabled={!draft.trim()}
+                aria-label={editing ? 'Odeslat upravený dotaz' : 'Odeslat dotaz'}
+              >
+                <Icon name="send" size={18} />
+              </button>
+            )}
+          </form>
+          {draft.length > 3200 && <span className="composer-count">{draft.length}/4000</span>}
         </div>
-      </aside>
+      )}
 
-      <form className="ask" onSubmit={onSubmit}>
-        <label htmlFor="ask-input" className="sr-only">
-          Dotaz na data Plzeňského kraje
-        </label>
-        <input
-          id="ask-input"
-          ref={inputRef}
-          className="ask__input"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Zeptejte se na cokoli o kraji…"
-          autoComplete="off"
-          maxLength={4000}
+      {latest && preferences.showLegend && !denseMap && (
+        <MapLegend
+          answer={latest}
+          focused={focused}
+          onReset={showKraj}
+          onHide={() => updatePreference('showLegend', false)}
         />
+      )}
+      {latest && (!preferences.showLegend || denseMap) && (
         <button
-          type="submit"
-          className="ask__send"
-          disabled={!draft.trim() || Boolean(loadingIn)}
-          aria-label="Odeslat dotaz"
+          type="button"
+          className="legend-launcher"
+          onClick={() => {
+            updatePreference('showLegend', true)
+            if (denseMap) layout.toggleSheet()
+          }}
         >
-          {loading ? <span className="spinner" aria-hidden="true" /> : <Icon name="send" />}
+          <Icon name="database" size={14} />
+          Legenda
         </button>
-      </form>
-
+      )}
       <div className="map-controls" role="group" aria-label="Ovládání mapy">
         <button
           type="button"
@@ -621,121 +854,56 @@ export function MapPage() {
         >
           <Icon name="minus" />
         </button>
+        <div className="map-controls__rule" />
         <button
           type="button"
           className="icon-btn"
           aria-label="Vycentrovat mapu na celý kraj"
-          title="Vycentrovat mapu na celý kraj"
+          title="Celý kraj"
           onClick={showKraj}
         >
           <Icon name="locate" />
         </button>
+        {document.fullscreenEnabled && (
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={fullScreen ? 'Ukončit celou obrazovku' : 'Celá obrazovka'}
+            title="Celá obrazovka"
+            onClick={() => {
+              const action = document.fullscreenElement
+                ? document.exitFullscreen()
+                : document.documentElement.requestFullscreen()
+              void action.catch(() => {})
+            }}
+          >
+            <Icon name="frame" size={18} />
+          </button>
+        )}
       </div>
-    </div>
-  )
-}
-
-function AnswerView({
-  answer,
-  hovered,
-  focused,
-  onHover,
-  onFocusOkres,
-  onShow,
-}: {
-  answer: Answer
-  hovered: OkresId | null
-  focused: OkresId | null
-  onHover: (id: OkresId | null) => void
-  onFocusOkres: (id: OkresId) => void
-  onShow?: () => void
-}) {
-  const max = answer.rows ? Math.max(...answer.rows.map((r) => Math.abs(r.value))) : 1
-  return (
-    <div className="answer">
-      <p>{answer.text}</p>
-      {answer.rows && (
-        <figure className="answer__data">
-          <figcaption>{answer.metric}</figcaption>
-          <table className="tabular">
-            <caption className="sr-only">
-              {answer.metric}. Kliknutím na okres na něj přiblížíte mapu.
-            </caption>
-            <thead className="sr-only">
-              <tr>
-                <th scope="col">Okres</th>
-                <th scope="col">Poměr</th>
-                <th scope="col">Hodnota</th>
-              </tr>
-            </thead>
-            <tbody>
-              {answer.rows.map((r) => (
-                <tr
-                  key={r.okres}
-                  className={
-                    [
-                      hovered === r.okres ? 'is-hovered' : '',
-                      focused === r.okres ? 'is-focused' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ') || undefined
-                  }
-                  onMouseEnter={() => onHover(r.okres)}
-                  onMouseLeave={() => onHover(null)}
-                  onClick={() => onFocusOkres(r.okres)}
-                >
-                  <th scope="row">
-                    <button
-                      type="button"
-                      className="okres-btn"
-                      aria-pressed={focused === r.okres}
-                      aria-label={
-                        focused === r.okres
-                          ? `${okresName(r.okres)}, ${formatValue(r.value, answer.unit, answer.signed)}. Zpět na celý kraj`
-                          : `${okresName(r.okres)}, ${formatValue(r.value, answer.unit, answer.signed)}. Přiblížit mapu na okres`
-                      }
-                      onFocus={() => onHover(r.okres)}
-                      onBlur={() => onHover(null)}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onFocusOkres(r.okres)
-                      }}
-                    >
-                      {okresName(r.okres)}
-                    </button>
-                  </th>
-                  <td className="answer__bar" aria-hidden="true">
-                    <span
-                      className={r.value < 0 ? 'bar bar--neg' : 'bar'}
-                      style={{ width: `${(Math.abs(r.value) / max) * 100}%` }}
-                    />
-                  </td>
-                  <td className="answer__val">
-                    {formatValue(r.value, answer.unit, answer.signed)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </figure>
-      )}
-      {answer.source && (
-        <p className="source">
-          <Icon name="database" size={16} />
-          <span>
-            <span className="sr-only">Zdroj dat: </span>
-            {answer.source.publisher} · {answer.source.name} · {answer.source.period}
-          </span>
-        </p>
-      )}
-      {onShow && (
-        <button type="button" className="show-on-map" onClick={onShow}>
-          <Icon name="locate" size={16} />
-          Zobrazit na mapě
-        </button>
-      )}
-      {answer.sample && (
-        <p className="sample">Ukázková data, napojení na skutečné zdroje se připravuje.</p>
+      {deleted && (
+        <div className="workspace-toast" role="status">
+          Konverzace smazána.
+          <button
+            type="button"
+            onClick={() => {
+              restore(deleted)
+              setDeleted(null)
+              setEditing(null)
+              resetView()
+            }}
+          >
+            Vrátit
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Zavřít oznámení"
+            onClick={() => setDeleted(null)}
+          >
+            <Icon name="close" size={14} />
+          </button>
+        </div>
       )}
     </div>
   )

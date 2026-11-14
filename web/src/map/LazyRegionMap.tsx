@@ -14,7 +14,8 @@ import './RegionMap.css'
 
 export type { RegionMapHandle } from './RegionMap'
 
-const Map = lazy(() => import('./RegionMap').then((module) => ({ default: module.RegionMap })))
+const loadMap = () => import('./RegionMap').then((module) => ({ default: module.RegionMap }))
+const Map = lazy(loadMap)
 
 class MapBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false }
@@ -38,12 +39,20 @@ export const RegionMap = memo(
     const [visible, setVisible] = useState(false)
     useEffect(() => {
       if (!host.current) return
-      const observer = new IntersectionObserver((entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setVisible(true)
-          observer.disconnect()
-        }
-      })
+      void loadMap()
+      if (!('IntersectionObserver' in window)) {
+        setVisible(true)
+        return
+      }
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            setVisible(true)
+            observer.disconnect()
+          }
+        },
+        { rootMargin: '240px' },
+      )
       observer.observe(host.current)
       return () => observer.disconnect()
     }, [])
@@ -51,7 +60,13 @@ export const RegionMap = memo(
       <div ref={host} className="region-map">
         {visible && (
           <MapBoundary>
-            <Suspense fallback={null}>
+            <Suspense
+              fallback={
+                <div className="map-loading" role="status">
+                  Načítám mapu…
+                </div>
+              }
+            >
               <Map {...props} ref={ref} />
             </Suspense>
           </MapBoundary>

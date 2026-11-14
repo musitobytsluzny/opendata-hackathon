@@ -13,7 +13,7 @@
 
 .auth__stage {
   position: absolute;
-  inset: 0 clamp(380px, 36vw, 560px) 0 0;
+  inset: 0;
 }
 
 .auth__stage .maplibregl-ctrl-attrib {
@@ -28,7 +28,8 @@
 .auth__vignette {
   position: absolute;
   inset: 0;
-  background: var(--vignette);
+  background:
+    linear-gradient(270deg, rgba(13, 18, 14, 0.62) 0%, rgba(13, 18, 14, 0) 46%), var(--vignette);
   pointer-events: none;
 }
 
@@ -88,7 +89,7 @@
   grid-template-columns: 1fr 1fr;
   padding: 4px;
   border-radius: 10px;
-  background: #f0f1ef;
+  background: rgb(var(--tint) / 0.06);
 }
 
 .seg__thumb {
@@ -98,7 +99,7 @@
   left: 4px;
   width: calc(50% - 4px);
   border-radius: var(--radius-s);
-  background: var(--paper);
+  background: var(--raised);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
   transition: transform 0.45s var(--ease-out);
 }
@@ -134,6 +135,7 @@
   font-weight: 680;
   letter-spacing: -0.03em;
   margin-bottom: 4px;
+  animation: title-in 0.45s var(--ease-out) both;
 }
 
 .field-row {
@@ -158,7 +160,7 @@
   width: 100%;
   height: 48px;
   padding: 0 14px;
-  border: 1px solid rgba(0, 0, 0, 0.16);
+  border: 1px solid rgb(var(--tint) / 0.16);
   border-radius: 10px;
   background: var(--paper);
   font-size: 16px;
@@ -168,7 +170,7 @@
 }
 
 .field input:hover {
-  border-color: rgba(0, 0, 0, 0.32);
+  border-color: rgb(var(--tint) / 0.32);
 }
 
 .field input:focus-visible {
@@ -201,7 +203,7 @@
 }
 
 .field__eye:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgb(var(--tint) / 0.05);
 }
 
 .field__hint {
@@ -235,7 +237,7 @@
 .auth__error {
   padding: 10px 12px;
   border-radius: var(--radius-s);
-  background: #fbeceb;
+  background: var(--danger-bg);
   color: var(--danger);
   font-size: 14px;
 }
@@ -302,7 +304,16 @@
 @keyframes card-in {
   from {
     opacity: 0;
-    transform: translateY(24px);
+    filter: blur(10px);
+    transform: translateY(24px) scale(0.985);
+  }
+}
+
+@keyframes title-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(6px);
   }
 }
 
@@ -314,9 +325,14 @@
     padding-top: 96px;
   }
 
-  .auth__stage {
-    inset: 0 0 auto 0;
-    height: 62vh;
+  .auth__vignette {
+    background: linear-gradient(
+      180deg,
+      rgba(13, 18, 14, 0.88) 0%,
+      rgba(13, 18, 14, 0.62) 36%,
+      rgba(13, 18, 14, 0.25) 64%,
+      rgba(13, 18, 14, 0.55) 100%
+    );
   }
 
   .auth__statement {

@@ -1,6 +1,8 @@
 import { memo } from 'react'
 import type { Position } from 'geojson'
 import { KRAJ_BOUNDS, okresy, type OkresId } from './geo'
+import { PALETTES, type PaletteId } from './palette'
+import { useSettings } from '../settings/settings'
 import './MiniKraj.css'
 
 const [[W, S], [E, N]] = KRAJ_BOUNDS
@@ -26,13 +28,11 @@ const SHAPES = okresy.features.map((f) => ({
       : f.geometry.coordinates.map((p) => p.map(ring).join('')).join(''),
 }))
 
-const STOPS: [number, [number, number, number]][] = [
-  [0, [220, 232, 246]],
-  [0.5, [91, 147, 211]],
-  [1, [27, 76, 133]],
-]
-
-function ramp(v: number): string {
+function ramp(v: number, palette: PaletteId): string {
+  const STOPS: [number, number[]][] = PALETTES[palette].map((color, index) => [
+    index / 2,
+    [1, 3, 5].map((offset) => parseInt(color.slice(offset, offset + 2), 16)),
+  ])
   const t = Math.min(1, Math.max(0, v))
   const i = t <= 0.5 ? 0 : 1
   const [a, ca] = STOPS[i]
@@ -55,6 +55,7 @@ export const MiniKraj = memo(function MiniKraj({
   tone = 'light',
   title,
 }: Props) {
+  const { palette } = useSettings()
   const empty = tone === 'dark' ? 'rgba(255,255,255,0.14)' : '#ececea'
   return (
     <svg
@@ -68,7 +69,7 @@ export const MiniKraj = memo(function MiniKraj({
     >
       {SHAPES.map((s) => {
         const v = values?.[s.id]
-        return <path key={s.id} d={s.d} fill={v === undefined ? empty : ramp(v)} />
+        return <path key={s.id} d={s.d} fill={v === undefined ? empty : ramp(v, palette)} />
       })}
     </svg>
   )

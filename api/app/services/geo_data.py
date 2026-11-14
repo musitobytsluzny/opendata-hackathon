@@ -133,6 +133,7 @@ def statistics(metric: Metric):
             },
         },
         "datasets": relevant,
+        "district_names": {code: name for name, code in DISTRICTS.items()},
         "sample": sample,
         "note": "Jen dostupné obce, nikoli úplné okresní součty; chybějící okresy nejsou nuly.",
     }

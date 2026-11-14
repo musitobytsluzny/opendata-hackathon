@@ -1,4 +1,40 @@
 const paths = {
+  search: (
+    <>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m16 16 5 5" />
+    </>
+  ),
+  edit: (
+    <>
+      <path d="m14 5 5 5M4 20l4-1 12-12a2.1 2.1 0 0 0-3-3L5 16Z" />
+    </>
+  ),
+  check: <path d="m5 12 4 4 10-10" />,
+  pin: (
+    <>
+      <path d="m9 3 12 12-3 1-3 3-1 3L2 10l3-1 3-3Z" />
+      <path d="m10 14-6 6" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
+    </>
+  ),
+  chevronDown: <path d="m6 9 6 6 6-6" />,
+  chevronUp: <path d="m6 15 6-6 6 6" />,
+  chat: (
+    <>
+      <path d="M21 11.5a8.5 8.5 0 0 1-12.5 7.5L3 21l1.8-5.5A8.5 8.5 0 1 1 21 11.5Z" />
+      <path d="M8 9h8M8 13h5" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />
