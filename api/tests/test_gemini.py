@@ -179,3 +179,75 @@ class GeminiTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(HTTPException) as context:
             await chat.answer(ChatRequest(question="test"), 1, "token")
         self.assertEqual(context.exception.status_code, 502)
+
+    async def test_verified_result_can_be_charted_without_model_supplied_values(self):
+        original = self.session.call_tool.side_effect
+
+        async def call_tool(name, arguments):
+            if name != "municipality_statistics":
+                return await original(name, arguments)
+            data = {
+                "result": {
+                    "title": "Obce",
+                    "rows": [{"name": "Fixture", "value": 42}],
+                    "columns": [
+                        {"key": "name", "label": "Obec"},
+                        {"key": "value", "label": "Počet", "numeric": True},
+                    ],
+                }
+            }
+            return CallToolResult(content=[], structuredContent=data)
+
+        self.session.call_tool.side_effect = call_tool
+        step = 0
+
+        async def model(**kwargs):
+            nonlocal step
+            step += 1
+            if step == 1:
+                return self.response(name="municipality_statistics")
+            if step == 2:
+                payload = kwargs["contents"][-1].parts[0].function_response.response["result"]
+                self.assertEqual(payload["rows"][0]["value"], 42)
+                self.assertNotIn("features", payload)
+                # Presentation directives are normally returned by the MCP tool.
+                self.session.call_tool.side_effect = AsyncMock(
+                    return_value=CallToolResult(
+                        content=[],
+                        structuredContent={
+                            "presentation": {
+                                "result_id": payload["result_id"],
+                                "view": "bar",
+                                "value_key": "value",
+                                "label_key": "name",
+                            }
+                        },
+                    )
+                )
+                return types.GenerateContentResponse(
+                    candidates=[
+                        types.Candidate(
+                            content=types.Content(
+                                role="model",
+                                parts=[
+                                    types.Part(
+                                        function_call=types.FunctionCall(
+                                            name="show_chart",
+                                            args={
+                                                "result_id": payload["result_id"],
+                                                "value_key": "value",
+                                                "label_key": "name",
+                                            },
+                                        )
+                                    )
+                                ],
+                            )
+                        )
+                    ]
+                )
+            return self.response(text="Tady je graf ověřených hodnot.")
+
+        self.client.aio.models.generate_content.side_effect = model
+        result = await chat.answer(ChatRequest(question="Ukaž graf"), 1, "user-token")
+        self.assertEqual(result.artifacts[0].view, "bar")
+        self.assertEqual(result.artifacts[0].rows[0]["value"], 42)

@@ -17,6 +17,8 @@ import { HistoryPanel } from '../chat/HistoryPanel'
 import { SettingsPanel } from '../chat/SettingsPanel'
 import { PENDING_QUESTION_KEY, SUGGESTIONS, ask, formatValue, normalize } from '../chat/assistant'
 import { sessionTitle, uid, useChatSessions, type Session } from '../hooks/useChatSessions'
+import { useMapLayers } from '../hooks/useMapLayers'
+import type { Artifact } from '../chat/assistant'
 import { usePreferences } from '../hooks/usePreferences'
 import { useWorkspaceLayout } from '../hooks/useWorkspaceLayout'
 import { RegionMap, type RegionMapHandle } from '../map/LazyRegionMap'
@@ -57,7 +59,92 @@ export function MapPage() {
   const [deleted, setDeleted] = useState<Session | null>(null)
   const [dataStatus, setDataStatus] = useState('Ověřuji data…')
   const [fullScreen, setFullScreen] = useState(Boolean(document.fullscreenElement))
+  const parcelRequest = useRef<AbortController | null>(null)
+  const [mapInteraction, setMapInteraction] = useState<{
+    session: string
+    mode: 'navigate' | 'parcel' | 'compare'
+  }>({ session: currentId, mode: 'navigate' })
+  const mapMode = mapInteraction.session === currentId ? mapInteraction.mode : 'navigate'
+  function setMapMode(mode: 'navigate' | 'parcel' | 'compare') {
+    parcelRequest.current?.abort()
+    setMapInteraction({ session: currentId, mode })
+  }
+  const [parcelFeedback, setParcelFeedback] = useState({ session: currentId, text: '' })
+  const parcelStatus = parcelFeedback.session === currentId ? parcelFeedback.text : ''
+  function setParcelStatus(text: string) {
+    setParcelFeedback({ session: currentId, text })
+  }
+  const [parcelSelection, setParcelSelection] = useState<{
+    session: string
+    items: { number: string; ku: string }[]
+  }>({ session: currentId, items: [] })
+  useEffect(() => () => parcelRequest.current?.abort(), [])
+  useEffect(() => {
+    parcelRequest.current?.abort()
+  }, [currentId])
   const messages = current.messages
+  const workspace = useMapLayers(messages, currentId)
+  const selectedParcels = parcelSelection.session === currentId ? parcelSelection.items : []
+  async function selectParcel(lon: number, lat: number) {
+    if (mapMode === 'navigate') return
+    parcelRequest.current?.abort()
+    const request = new AbortController()
+    parcelRequest.current = request
+    const sessionId = currentId
+    setParcelStatus('Hledám parcelu v katastru…')
+    try {
+      const { result } = await apiFetch<{ result: Artifact }>(
+        `/data/parcels/at-point?lat=${lat}&lon=${lon}`,
+        { signal: request.signal },
+      )
+      if (request.signal.aborted || currentRef.current !== sessionId) return
+      if (!result.rows.length) {
+        setParcelStatus('V tomto místě nebyla nalezena parcela.')
+        return
+      }
+      workspace.show({ ...result, view: 'map' })
+      update(sessionId, (session) => ({
+        ...session,
+        messages: [
+          ...session.messages,
+          {
+            id: uid(),
+            role: 'assistant',
+            answer: {
+              text:
+                result.rows.length === 1
+                  ? 'Vybraná parcela z mapy.'
+                  : 'Kliknutí odpovídá více parcelám. Pro jednoznačný výběr klikněte dovnitř parcely.',
+              sample: result.sample,
+              artifacts: [{ ...result, view: 'map' }],
+            },
+          },
+        ],
+        updatedAt: Date.now(),
+      }))
+      if (result.rows.length !== 1) {
+        setParcelStatus('Na hranici je více parcel. Klikněte dovnitř konkrétní parcely.')
+        return
+      }
+      const row = result.rows[0]
+      const selection = { number: String(row.name), ku: String(row.kod_ku) }
+      const previous =
+        mapMode === 'compare' && parcelSelection.session === sessionId ? parcelSelection.items : []
+      const items = [
+        ...previous.filter((item) => item.number !== selection.number || item.ku !== selection.ku),
+        selection,
+      ].slice(-2)
+      setParcelSelection({ session: sessionId, items })
+      setParcelStatus(
+        mapMode === 'compare'
+          ? `Vybráno ${items.length}/2 parcel.`
+          : `Parcela ${selection.number}, KÚ ${selection.ku}.`,
+      )
+    } catch (error) {
+      if (!request.signal.aborted && currentRef.current === sessionId)
+        setParcelStatus(error instanceof Error ? error.message : 'Parcelu se nepodařilo načíst.')
+    }
+  }
   const draft = current.draft ?? ''
   const loading = loadingIn === currentId
   const motion =
@@ -447,6 +534,10 @@ export function MapPage() {
     >
       <RegionMap
         ref={mapRef}
+        overlay={workspace.features}
+        focusFeatures={workspace.focusFeatures}
+        overlayKey={workspace.focusKey}
+        onMapClick={mapMode === 'navigate' ? undefined : (lon, lat) => void selectParcel(lon, lat)}
         values={active?.values ?? null}
         labels={preferences.showLabels ? labels : null}
         hovered={hovered}
@@ -474,6 +565,78 @@ export function MapPage() {
         }}
       />
       <div className="app__vignette" aria-hidden="true" />
+      <details className="map-layers" open={mapMode !== 'navigate' || undefined}>
+        <summary>
+          Mapa a vrstvy{workspace.layers.length ? ` · ${workspace.layers.length}` : ''}
+        </summary>
+        {workspace.layers.map((layer) => (
+          <label key={layer.artifact.result_id}>
+            <input
+              type="checkbox"
+              checked={layer.visible}
+              onChange={(event) => workspace.toggle(layer.artifact.result_id, event.target.checked)}
+            />
+            <span style={{ color: layer.color }}>{layer.artifact.title}</span>
+          </label>
+        ))}
+        <div className="map-layers__tools">
+          <button
+            type="button"
+            aria-pressed={mapMode === 'navigate'}
+            onClick={() => {
+              setMapMode('navigate')
+              parcelRequest.current?.abort()
+              setParcelStatus('')
+            }}
+          >
+            Pohyb mapy
+          </button>
+          <button
+            type="button"
+            aria-pressed={mapMode === 'parcel'}
+            onClick={() => {
+              setMapMode('parcel')
+              setParcelStatus('Klikněte na parcelu v mapě.')
+              setParcelSelection({ session: currentId, items: [] })
+            }}
+          >
+            Vybrat parcelu
+          </button>
+          <button
+            type="button"
+            aria-pressed={mapMode === 'compare'}
+            onClick={() => {
+              setMapMode('compare')
+              setParcelStatus('Klikněte na dvě parcely.')
+              setParcelSelection({ session: currentId, items: [] })
+            }}
+          >
+            Porovnat parcely
+          </button>
+        </div>
+        {parcelStatus && (
+          <p className="map-layers__status" role="status">
+            {parcelStatus}
+          </p>
+        )}
+        {selectedParcels.length > 0 && (
+          <div className="map-layers__tools">
+            <button
+              type="button"
+              disabled={Boolean(loadingIn) || (mapMode === 'compare' && selectedParcels.length < 2)}
+              onClick={() =>
+                void send(
+                  selectedParcels.length === 2
+                    ? `Porovnej parcely ${selectedParcels.map((item) => `číslo ${item.number} v katastrálním území s kódem ${item.ku}`).join(' a ')}. Použij skutečné údaje, prověř obě parcely a shrň rozdíly i chybějící data.`
+                    : `Prověř parcelu číslo ${selectedParcels[0].number} v katastrálním území s kódem ${selectedParcels[0].ku}, kterou jsem vybral na mapě.`,
+                )
+              }
+            >
+              {selectedParcels.length === 2 ? 'Porovnat v chatu' : 'Prověřit v chatu'}
+            </button>
+          </div>
+        )}
+      </details>
 
       {collapsed ? (
         <div className="chat-launcher">
@@ -687,6 +850,7 @@ export function MapPage() {
                     {message.role === 'assistant' && (
                       <AnswerView
                         answer={message.answer}
+                        onMap={workspace.show}
                         onAsk={loadingIn ? undefined : (question) => void send(question)}
                         hovered={active?.id === message.id ? hovered : null}
                         onHover={active?.id === message.id ? setHovered : () => {}}

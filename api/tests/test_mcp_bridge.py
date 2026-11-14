@@ -37,6 +37,11 @@ class MCPBridgeTests(unittest.IsolatedAsyncioTestCase):
                     async with ClientSession(read, write) as session:
                         await session.initialize()
                         tools = (await session.list_tools()).tools
+                        from app.services.gemini_chat import ALLOWED_TOOLS
+
+                        self.assertTrue(ALLOWED_TOOLS <= {tool.name for tool in tools})
+                        for registered in tools:
+                            self.assertNotIn("ctx", registered.inputSchema.get("properties", {}))
                         tool = next(tool for tool in tools if tool.name == "dataset_catalog")
                         self.assertNotIn("ctx", tool.inputSchema.get("properties", {}))
                         result = await session.call_tool("dataset_catalog", {})

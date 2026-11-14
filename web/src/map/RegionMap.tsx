@@ -1,3 +1,4 @@
+import type { Feature, Position } from 'geojson'
 import {
   forwardRef,
   useCallback,
@@ -10,6 +11,9 @@ import {
 import {
   Map as MlMap,
   Marker,
+  LngLatBounds,
+  type GeoJSONSource,
+  type LngLatBoundsLike,
   setWorkerUrl,
   prewarm,
   type ExpressionSpecification,
@@ -48,7 +52,10 @@ export type RegionMapHandle = {
   zoomOut: () => void
 }
 
-type Target = { kind: 'kraj' } | { kind: 'okres'; id: OkresId }
+type Target =
+  | { kind: 'kraj' }
+  | { kind: 'okres'; id: OkresId }
+  | { kind: 'overlay'; bounds: LngLatBoundsLike }
 type Camera = { center: LngLatLike; zoom: number; bearing: number; version: number }
 
 const EASE = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
@@ -56,6 +63,10 @@ const EASE = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 
 type Padding = { top: number; right: number; bottom: number; left: number }
 
 export type RegionMapProps = {
+  overlay?: Feature[]
+  focusFeatures?: Feature[]
+  overlayKey?: string
+  onMapClick?: (lon: number, lat: number) => void
   interactive?: boolean
   hoverable?: boolean
   palette?: PaletteId
@@ -155,6 +166,10 @@ const DEFAULT_PADDING: Padding = { top: 24, right: 24, bottom: 24, left: 24 }
 
 export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function RegionMap(
   {
+    overlay,
+    focusFeatures,
+    overlayKey,
+    onMapClick,
     interactive = true,
     hoverable = false,
     palette,
@@ -187,6 +202,7 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
   const paddingRef = useRef(padding)
   const onHoverRef = useRef(onHover)
   const valueMarkers = useRef<Marker[]>([])
+  const onMapClickRef = useRef(onMapClick)
   const onSelectRef = useRef(onSelect)
   const motionRef = useRef(motionReduced)
 
@@ -204,9 +220,10 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     maskRef.current = maskOpacity
     onHoverRef.current = onHover
     labelRef.current = label
+    onMapClickRef.current = onMapClick
     onSelectRef.current = onSelect
     motionRef.current = motionReduced
-  }, [padding, maskOpacity, onHover, label, onSelect, motionReduced])
+  }, [padding, maskOpacity, onHover, label, onSelect, onMapClick, motionReduced])
 
   const target = useRef<Target>({ kind: 'kraj' })
   const targetVersion = useRef(0)
@@ -217,10 +234,11 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
     const m = map.current
     if (!m) return
     const t = target.current
-    const bounds = t.kind === 'okres' ? OKRES_BOUNDS[t.id] : KRAJ_BOUNDS
+    const bounds =
+      t.kind === 'overlay' ? t.bounds : t.kind === 'okres' ? OKRES_BOUNDS[t.id] : KRAJ_BOUNDS
     m.fitBounds(bounds, {
       padding: paddingRef.current,
-      ...(t.kind === 'okres' ? { maxZoom: 11.5 } : {}),
+      ...(t.kind === 'okres' ? { maxZoom: 11.5 } : t.kind === 'overlay' ? { maxZoom: 17 } : {}),
       duration:
         motionRef.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches
           ? 0
@@ -377,7 +395,7 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
         })
         m.on('click', 'okresy-fill', (e: MapLayerMouseEvent) => {
           const id = e.features?.[0]?.properties?.id as OkresId | undefined
-          if (interactive && id && OKRESY[id]) onSelectRef.current?.(id)
+          if (interactive && !onMapClickRef.current && id && OKRESY[id]) onSelectRef.current?.(id)
         })
         m.on('mouseleave', 'okresy-fill', () => {
           m.getCanvas().style.cursor = ''
@@ -385,6 +403,38 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
         })
       }
 
+      m.addSource('workspace', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      const color: ExpressionSpecification = ['coalesce', ['get', '_color'], '#c3d6ad']
+      m.addLayer({
+        id: 'workspace-fill',
+        type: 'fill',
+        source: 'workspace',
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: { 'fill-color': color, 'fill-opacity': 0.25 },
+      })
+      m.addLayer({
+        id: 'workspace-line',
+        type: 'line',
+        source: 'workspace',
+        filter: ['!=', ['geometry-type'], 'Point'],
+        paint: { 'line-color': color, 'line-width': 3 },
+      })
+      m.addLayer({
+        id: 'workspace-point',
+        type: 'circle',
+        source: 'workspace',
+        filter: ['==', ['geometry-type'], 'Point'],
+        paint: {
+          'circle-color': color,
+          'circle-radius': 7,
+          'circle-stroke-color': '#172019',
+          'circle-stroke-width': 2,
+        },
+      })
+      m.on('click', (event) => onMapClickRef.current?.(event.lngLat.lng, event.lngLat.lat))
       setReady(true)
     })
 
@@ -396,6 +446,52 @@ export const RegionMap = forwardRef<RegionMapHandle, RegionMapProps>(function Re
       map.current = null
     }
   }, [interactive, hoverable])
+
+  useEffect(() => {
+    const m = map.current
+    if (!m || !ready) return
+    ;(m.getSource('workspace') as GeoJSONSource).setData({
+      type: 'FeatureCollection',
+      features: overlay ?? [],
+    })
+    const markers: Marker[] = []
+    for (const feature of overlay ?? []) {
+      if (markers.length >= 25 || !feature.geometry) break
+      const geometry = feature.geometry
+      let coordinates: Position | undefined
+      if (geometry.type === 'Point') coordinates = geometry.coordinates
+      else if (geometry.type === 'LineString' && feature.properties?.measurement)
+        coordinates = geometry.coordinates[Math.floor(geometry.coordinates.length / 2)]
+      if (!coordinates || !feature.properties?.label) continue
+      const element = document.createElement('span')
+      element.className = 'workspace-map-label'
+      element.textContent = String(feature.properties.label)
+      markers.push(
+        new Marker({ element, anchor: 'bottom', offset: [0, -10] })
+          .setLngLat([coordinates[0], coordinates[1]])
+          .addTo(m),
+      )
+    }
+    return () => markers.forEach((marker) => marker.remove())
+  }, [overlay, ready])
+
+  useEffect(() => {
+    if (!ready || !overlayKey || !overlay?.length) return
+    const bounds = new LngLatBounds()
+    function extend(coordinates: unknown) {
+      if (!Array.isArray(coordinates)) return
+      if (typeof coordinates[0] === 'number' && typeof coordinates[1] === 'number') {
+        if (Number.isFinite(coordinates[0]) && Number.isFinite(coordinates[1]))
+          bounds.extend([coordinates[0], coordinates[1]])
+      } else coordinates.forEach(extend)
+    }
+    for (const feature of focusFeatures ?? overlay)
+      if (feature.geometry && 'coordinates' in feature.geometry)
+        extend(feature.geometry.coordinates)
+    if (!bounds.isEmpty()) setTarget({ kind: 'overlay', bounds: bounds.toArray() })
+    // Geometry visibility changes update the source; camera moves only for an explicit target key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlayKey, ready])
 
   useEffect(() => {
     const m = map.current

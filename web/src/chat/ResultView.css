@@ -1,0 +1,133 @@
+.result-view {
+  margin: 20px 0;
+  min-width: 0;
+}
+.result-view figcaption {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.result-view__controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.result-view__controls button,
+.result-view select {
+  border: 1px solid var(--border, #ffffff24);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.result-view__controls [aria-pressed='true'] {
+  background: #8cae7e22;
+  border-color: #8cae7e;
+}
+.result-view table {
+  width: 100%;
+  font-size: 12px;
+}
+.result-view th,
+.result-view td {
+  padding: 8px 6px;
+  text-align: left;
+  border-bottom: 1px solid #8882;
+}
+.result-view th button {
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.result-view__note {
+  opacity: 0.65;
+  font-size: 11px;
+  line-height: 1.6;
+  margin-top: 10px;
+}
+.result-view__bar-row {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) minmax(40px, 1.3fr) auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  padding: 5px 0;
+}
+.result-view__bar-row strong {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.result-view__track {
+  position: relative;
+  height: 8px;
+  background: #8881;
+  border-radius: 2px;
+}
+.result-view__track i {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: #8cae7e;
+  min-width: 1px;
+}
+.result-view__line {
+  width: 100%;
+  color: #8cae7e;
+}
+.map-layers {
+  position: absolute;
+  top: 72px;
+  right: 16px;
+  z-index: 3;
+  max-width: 240px;
+  max-height: 42vh;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #ffffff20;
+  border-radius: 12px;
+  background: #172019e8;
+  color: #e8eee5;
+  backdrop-filter: blur(16px);
+  font-size: 12px;
+}
+.map-layers summary {
+  cursor: pointer;
+}
+.map-layers label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 10px;
+}
+.map-layers label span {
+  overflow-wrap: anywhere;
+}
+.map-layers button {
+  color: inherit;
+  background: transparent;
+  border: 1px solid #ffffff30;
+  border-radius: 6px;
+  padding: 5px 7px;
+  font: inherit;
+  cursor: pointer;
+}
+.map-layers__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.map-layers [aria-pressed='true'] {
+  border-color: #adc69d;
+  background: #adc69d22;
+}
+.map-layers__status {
+  margin: 8px 0 0;
+  line-height: 1.5;
+}

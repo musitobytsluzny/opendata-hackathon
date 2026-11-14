@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '../components/Icon'
 import { formatValue, okresName, type Answer } from './assistant'
 import { Markdown } from './Markdown'
+import { ResultView } from './ResultView'
+import type { Artifact } from './assistant'
 import type { OkresId } from '../map/geo'
 
 export function AnswerView({
@@ -12,8 +14,10 @@ export function AnswerView({
   onFocusOkres,
   onShow,
   onAsk,
+  onMap,
 }: {
   answer: Answer
+  onMap?: (artifact: Artifact) => void
   hovered: OkresId | null
   focused: OkresId | null
   onHover: (id: OkresId | null) => void
@@ -88,6 +92,21 @@ export function AnswerView({
         KartogramMCP {answer.sample && <span className="answer__badge">Demo</span>}
       </div>
       <Markdown text={answer.text} />
+      {Array.from(
+        (answer.artifacts ?? [])
+          .reduce((items, artifact) => {
+            const previous = items.get(artifact.result_id)
+            if (!previous || artifact.view !== 'map') items.set(artifact.result_id, artifact)
+            return items
+          }, new Map<string, Artifact>())
+          .values(),
+      ).map((artifact) => (
+        <ResultView
+          key={`${artifact.result_id}-${artifact.view}`}
+          artifact={artifact}
+          onMap={onMap ?? (() => {})}
+        />
+      ))}
       {answer.rows && (
         <figure className="answer__data">
           <figcaption>{answer.metric}</figcaption>

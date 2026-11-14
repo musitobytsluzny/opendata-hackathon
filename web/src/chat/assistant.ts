@@ -1,9 +1,26 @@
+import type { Feature } from 'geojson'
 import { apiFetch } from '../api/client'
 import { OKRESY, type OkresId } from '../map/geo'
 
 export type AnswerRow = { okres: OkresId; value: number }
 
+export type Artifact = {
+  result_id: string
+  title: string
+  view: 'table' | 'map' | 'bar' | 'line'
+  columns: { key: string; label: string; numeric: boolean; unit: string }[]
+  rows: Record<string, string | number | boolean | null>[]
+  features: Feature[]
+  sources: { table_name?: string; name?: string; data_kind?: string; loaded_at?: string }[]
+  note: string
+  sample: boolean
+  value_key?: string | null
+  label_key?: string | null
+}
+
 export type Answer = {
+  artifacts?: Artifact[]
+  layer_actions?: { result_id: string; visible: boolean }[]
   text: string
   metric?: string
   short?: string
@@ -25,7 +42,8 @@ export const SUGGESTIONS = [
   'Kolik obyvatel mají dostupné obce v jednotlivých okresech?',
   'Jaký je podíl seniorů v dostupných obcích?',
   'Kde mají dostupné obce nejvyšší podíl zeleně?',
-  'Jaká data jsou právě načtená a která jsou jen ukázková?',
+  'Porovnej 10 největších obcí podle počtu obyvatel v grafu a na mapě.',
+  'Najdi silniční trasu mezi Plzní a Klatovy a ukaž ji na mapě.',
 ]
 
 export async function ask(
@@ -33,10 +51,20 @@ export async function ask(
   history: Message[] = [],
   signal?: AbortSignal,
 ): Promise<Answer> {
+  const resultIds = [
+    ...new Set(
+      history.flatMap((message) =>
+        message.role === 'assistant'
+          ? (message.answer.artifacts ?? []).map((item) => item.result_id)
+          : [],
+      ),
+    ),
+  ].slice(-8)
   return apiFetch<Answer>('/chat/ask', {
     method: 'POST',
     body: JSON.stringify({
       question,
+      ...(resultIds.length ? { result_ids: resultIds } : {}),
       history: history
         .filter((message) => message.role !== 'error')
         .slice(-10)
