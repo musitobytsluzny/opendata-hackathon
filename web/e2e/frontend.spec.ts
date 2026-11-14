@@ -66,7 +66,9 @@ test('chat width supports drag, keyboard and persistence; settings fit mobile', 
     .toBe(650)
   await expect
     .poll(() =>
-      page.evaluate(() => JSON.parse(localStorage.getItem('kartogram:preferences:v1')!).panelWidth),
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem('kartogram:preferences:v1') ?? '{}').panelWidth,
+      ),
     )
     .toBe(650)
   await page.reload()
@@ -82,7 +84,9 @@ test('chat width supports drag, keyboard and persistence; settings fit mobile', 
   await page.getByRole('combobox', { name: 'Velikost textu', exact: true }).selectOption('large')
   await expect
     .poll(() =>
-      page.evaluate(() => JSON.parse(localStorage.getItem('kartogram:preferences:v1')!).dimOutside),
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem('kartogram:preferences:v1') ?? '{}').dimOutside,
+      ),
     )
     .toBe(false)
   await page.reload()
