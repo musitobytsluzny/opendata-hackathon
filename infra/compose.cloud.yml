@@ -5,11 +5,4 @@ services:
       GEMINI_API_KEY: ''
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:?Set GOOGLE_CLOUD_PROJECT in .env}
       GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-global}
-      GOOGLE_APPLICATION_CREDENTIALS: /run/google/application_default_credentials.json
-    volumes:
-      - type: bind
-        source: ${GOOGLE_ADC_HOST_PATH:?Set GOOGLE_ADC_HOST_PATH in .env}
-        target: /run/google/application_default_credentials.json
-        read_only: true
-        bind:
-          create_host_path: false
+      GOOGLE_ADC_JSON: ${GOOGLE_ADC_JSON:-}

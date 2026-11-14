@@ -63,13 +63,11 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:?Set GOOGLE_CLOUD_PROJECT}
       GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-global}
-      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/google-application-credentials.json
+      GOOGLE_ADC_JSON: ${GOOGLE_ADC_JSON:-}
       GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-60}
       GEMINI_MAX_OUTPUT_TOKENS: ${GEMINI_MAX_OUTPUT_TOKENS:-2048}
       LLM_MAX_CONCURRENT: ${LLM_MAX_CONCURRENT:-4}
       MCP_SERVER_URL: http://mcp:8000/mcp/sse
-    volumes:
-      - "${GOOGLE_ADC_HOST_PATH:?Set the absolute VPS path to the read-only Google ADC JSON file}:/run/secrets/google-application-credentials.json:ro"
     depends_on:
       db:
         condition: service_healthy
